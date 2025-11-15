@@ -1,0 +1,61 @@
+openapi: 3.0.0
+
+
+
+
+info:
+  title: WASAText API
+  description: |
+    WASAText is a messaging platform that allows users to 
+    communicate with contacts and groups.
+  version: 0.0.1
+
+
+
+
+servers:
+  - url: http://localhost:3000
+
+
+
+
+components:
+  schemas:
+    UserId:
+      description: The unique identifier of a user.
+      type: string
+      format: uuid
+      example: "123e4567-e89b-12d3-a456-426614174000"
+    Username:
+      description: The username of the user.
+      type: string
+      example: "johndoe"
+    PhotoUrl:
+      description: URL of the user's profile photo.
+      type: string
+      format: uri
+      nullable: true
+      example: "http://example.com/photos/johndoe.jpg"
+    UserLoginRequest:
+      description: Request payload for user login.
+      type: object
+      properties:
+        username:
+          $ref: '#/components/schemas/Username'
+      required:
+        - username
+    UserLoginResponse:
+      description: Response payload for user login.
+      type: object
+      properties:
+        userId:
+          $ref: '#/components/schemas/UserId'
+        username:
+          $ref: '#/components/schemas/Username'
+        photoUrl:
+          $ref: '#/components/schemas/PhotoUrl'
+
+
+paths:
+  /login:
+    

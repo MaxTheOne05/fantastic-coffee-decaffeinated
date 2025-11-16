@@ -26,16 +26,19 @@ components:
       type: string
       format: uuid
       example: "123e4567-e89b-12d3-a456-426614174000"
+
     Username:
       description: The username of the user.
       type: string
       example: "johndoe"
+
     PhotoUrl:
       description: URL of the user's profile photo.
       type: string
       format: uri
       nullable: true
       example: "http://example.com/photos/johndoe.jpg"
+
     UserLoginRequest:
       description: Request payload for user login.
       type: object
@@ -44,6 +47,7 @@ components:
           $ref: '#/components/schemas/Username'
       required:
         - username
+        
     UserLoginResponse:
       description: Response payload for user login.
       type: object
@@ -57,5 +61,23 @@ components:
 
 
 paths:
-  /login:
+  /auth/login:
+    post:
+      summary: User Login
+      description: Authenticates a user and returns their user ID, username, and profile photo URL.
+      operationId: doLogin
+      requestBody:
+        description: User login request payload.
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UserLoginRequest'
+      responses:
+        '200':
+          description: Successful login.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserLoginResponse'
     

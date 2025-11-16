@@ -1,8 +1,4 @@
 openapi: 3.0.0
-
-
-
-
 info:
   title: WASAText API
   description: |
@@ -11,12 +7,8 @@ info:
   version: 0.0.1
 
 
-
-
 servers:
   - url: http://localhost:3000
-
-
 
 
 components:
@@ -47,7 +39,7 @@ components:
           $ref: '#/components/schemas/Username'
       required:
         - username
-        
+
     UserLoginResponse:
       description: Response payload for user login.
       type: object
@@ -58,6 +50,59 @@ components:
           $ref: '#/components/schemas/Username'
         photoUrl:
           $ref: '#/components/schemas/PhotoUrl'
+
+    ConversationId:
+      description: The unique identifier of a conversation.
+      type: string
+      format: uuid
+      example: "223e4567-e89b-12d3-a456-426614174001"
+
+    MessageSnippet:
+      description: A brief snippet of last message for each conversation.
+      type: object
+      properties:
+        type: 
+          type: string
+          enum: [text, photo]
+          example: "text"
+        content:
+          type: string
+          example: "Hey, how are you?"
+        timestamp:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+      required:
+        - type
+        - content
+        - timestamp
+
+    ConversationSummary:
+      description: Summary of a conversation.
+      type: object
+      properties:
+        conversationId:
+          $ref: '#/components/schemas/ConversationId'
+        name: 
+          type: string
+          example: "Frank Miller"
+        photoUrl:
+          $ref: '#/components/schemas/PhotoUrl'
+        lastMessage:
+          $ref: '#/components/schemas/MessageSnippet'
+        lastActivity:
+          example: false
+        unreadCount:
+          type: integer
+          example: 2
+      required:
+        - conversationId
+        - name
+        - photoUrl
+        - lastMessage
+        - lastActivity
+
+
 
 
 paths:
@@ -80,4 +125,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserLoginResponse'
-    
+  
+  /conversations:
+    get:
+      summary: Get my conversations
+      description: Returns the authenticated user's conversation list in reverse chronological order.
+      operationId: getMyConversations
+      parameters:
+        - name: cursor
+          in: query
+          description: Opaque cursor for pagination (fetch items before this cursor).
+          required: false
+          schema:
+            type: string
+        - name: limit
+          in: query
+          description: Maximum number of items to return.
+          required: false
+          schema:
+            type: integer
+            format: int32
+            default: 20
+      responses:
+        '200':
+          description: A list of conversation summaries.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ConversationSummary'
+                  nextCursor:
+                    type: string
+                    nullable: true
+                required:
+                  - items
+                  - nextCursor

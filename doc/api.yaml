@@ -2,24 +2,8 @@ openapi: 3.0.0
 info:
   title: WASAText API
   description: |
-    WASAText is a messaging platform that allows users to 
-    communicate with contacts and groups.
-
-    ## Authentication
-    This API uses **Bearer JWT tokens** for authentication.
-    Send the token in every protected request in this header:
-
-    ```
-    Authorization: Bearer <accessToken>
-    ```
-
-    Token details:
-    - Algorithm: HS256 (example; verify with server implementation)
-    - Common claims:
-      - **sub**: user ID (UUID)
-      - **iat**: issued-at (unix timestamp)
-      - **exp**: expiry timestamp
-      - **iss**: "WASAText"
+    WASAText is a PC based messaging platform that allows 
+    users to communicate with contacts and groups.
 
   version: 0.0.1
 
@@ -61,7 +45,7 @@ components:
           example: "Missing or invalid access token."
         details:
           type: object
-          nullable: true
+          nullable: true # è davvero necessario?
       required:
         - code
         - message
@@ -81,19 +65,10 @@ components:
       description: URL of the user's profile photo.
       type: string
       format: uri
-      nullable: true
+      nullable: true # è davvero necessario? 
       example: "http://example.com/photos/johndoe.jpg"
 
-    UserLoginRequest:
-      description: Request payload for user login.
-      type: object
-      properties:
-        username:
-          $ref: '#/components/schemas/Username'
-      required:
-        - username
-
-    UserLoginResponse:
+    UserInfo:
       description: Response payload for user login.
       type: object
       properties:
@@ -138,12 +113,13 @@ components:
           type: boolean
           example: false
         user:
-          $ref: '#/components/schemas/UserLoginResponse'
+          $ref: '#/components/schemas/UserInfo'
       required:
         - accessToken
         - tokenType
         - expiresIn
         - user
+
 
     ConversationId:
       description: The unique identifier of a conversation.
@@ -151,25 +127,33 @@ components:
       format: uuid
       example: "223e4567-e89b-12d3-a456-426614174001"
 
+    MessageType:
+      description: The type of message.
+      type: string
+      enum: [text, photo, text_with_photo]
+      example: "text"
+
     MessageSnippet:
       description: A brief snippet of last message for each conversation.
       type: object
       properties:
-        type: 
-          type: string
-          enum: [text, photo]
-          example: "text"
+        message:
+          $ref: "#/components/schemas/Message"
+          example:
+            messageId: "323e4567-e89b-12d3-a456-426614174002"
+            conversationId: "223e4567-e89b-12d3-a456-426614174001"
+            senderId: "123e4567-e89b-12d3-a456-426614174000"
+            createdAt: "2024-01-01T12:00:00Z"
+            type: "text"
+            content: "Hey, how are you bla bla bla bla bla bla bla bla?"
         content:
           type: string
-          example: "Hey, how are you?"
-        timestamp:
-          type: string
-          format: date-time
-          example: "2024-01-01T12:00:00Z"
-      required:
+          maxLength: 50 # non voglio che sia lungo come Message.content siccome è solo un'anteprima
+          example: "Hey, how are you"
+      required: 
         - type
         - content
-        - timestamp
+      # si potrebbe sostituire con [type, content]
 
     ConversationSummary:
       description: Summary of a conversation.
@@ -206,18 +190,13 @@ components:
       format: uuid
       example: "323e4567-e89b-12d3-a456-426614174002"
 
-    MessageType:
-      description: The type of message.
-      type: string
-      enum: [text, photo]
-      example: "text"
-
+    
     Message:
       description: A message in a conversation.
       type: object
       properties:
-        messageId:
-          $ref: '#/components/schemas/MessageId'
+        messageId: # deve essere diverso da forwardedMessageId e replyToMessageId
+          $ref: '#/components/schemas/MessageId' 
         conversationId:
           $ref: '#/components/schemas/ConversationId'
         senderId:
@@ -229,24 +208,28 @@ components:
         type:
           $ref: '#/components/schemas/MessageType'
         content:
-          description: The content of the message. This can be text or a URL to a photo depending on the message type.
-          type: string
-          example: "Hello!"
+          description: The content of the message. This can be text, photo or both.
+          anyOf:
+            - type: string
+              description: Text content of the message.
+              example: "Hello!"
+            - $ref: '#/components/schemas/PhotoUrl'
+              example: "http://example.com/photos/messagephoto.jpg" 
         deleted:
           type: boolean
           example: false
-          nullable: true
+          nullable: true # è davvero necessario?
         forwardedMessageId:
           $ref: '#/components/schemas/MessageId'
-          nullable: true
+          nullable: true # è davvero necessario?
         replyToMessageId:
           $ref: '#/components/schemas/MessageId'
-          nullable: true
-        editedAt:
+          nullable: true # è davvero necessario?
+        editedAt: # vediamo se serve implementare questa funzionalità
           type: string
           format: date-time
           example: "2024-01-01T12:05:00Z"
-          nullable: true
+          nullable: true # è davvero necessario?
       required:
         - messageId
         - conversationId
@@ -261,21 +244,19 @@ components:
       properties:
         messageId:
           $ref: '#/components/schemas/MessageId'
-        recipientId:
-          $ref: '#/components/schemas/UserId'
-        deliveredAt:
-          type: string
-          format: date-time
-          example: "2024-01-01T12:01:00Z"
-          nullable: true
-        readAt:
+        recipientsId:
+          type: array
+          items: 
+            $ref: '#/components/schemas/UserId'
+          minItems: 1
+        readAt: # orario in cui l'ultimo dei riceventi ha letto il messaggio, se nullo significa che almeno 1 ricevente non l'ha letto
           type: string
           format: date-time
           example: "2024-01-01T12:03:00Z"
-          nullable: true
+          nullable: true # è davvero necessario?
       required:
         - messageId
-        - recipientId
+        - recipientsId
 
     ReactionId:
       description: The unique identifier of a reaction.
@@ -419,10 +400,16 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserLoginRequest'
+              $ref: "#/components/schemas/Username"
       responses:
         '200':
           description: Successful login.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        '201':
+          description: New user created and logged in.
           content:
             application/json:
               schema:
@@ -433,6 +420,35 @@ paths:
           $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /me/username:
+    patch:
+      summary: Sets my username
+      description: Sets the authenticated user's username.
+      operationId: setMyUserName
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Username"
+      responses:
+        '200':
+          description: Username set successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInfo"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalError'
   
@@ -470,7 +486,7 @@ paths:
                       $ref: '#/components/schemas/ConversationSummary'
                   nextCursor:
                     type: string
-                    nullable: true
+                    nullable: true # è davvero necessario?
                 required:
                   - items
                   - nextCursor

@@ -12,7 +12,46 @@ servers:
 
 
 components:
+  
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        JWT access token using HS256.
+        Standard claims:
+        - **sub**: user ID (UUID)
+        - **iat**: issued-at (unix timestamp)
+        - **exp**: expiry timestamp
+        - **iss**: "WASAText"
+
+
+  headers:
+    WWW-Authenticate:
+      description: 'Authentication method required (Bearer).'
+      schema:
+        type: string
+      example: 'Bearer realm="WASAText"'  
+
   schemas:
+
+    Error:
+      type: object
+      properties:
+        code:
+          type: string
+          example: "AUTH_FAILED"
+        message:
+          type: string
+          example: "Missing or invalid access token."
+        details:
+          type: object
+          nullable: true
+      required:
+        - code
+        - message
+
     UserId:
       description: The unique identifier of a user.
       type: string
@@ -51,6 +90,41 @@ components:
         photoUrl:
           $ref: '#/components/schemas/PhotoUrl'
 
+    AuthResponse:
+      description: Authentication response including access token and user profile.
+      type: object
+      properties:
+        accessToken:
+          type: string
+          description: Bearer access token (JWT or similar).
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+        tokenType:
+          type: string
+          example: "Bearer"
+        expiresIn:
+          type: integer
+          description: Expiry in seconds.
+          example: 3600
+        issuedAt:
+          type: string
+          format: date-time
+          example: "2025-11-16T12:00:00Z"
+        expiresAt:
+          type: string
+          format: date-time
+          example: "2025-11-16T13:00:00Z"
+        isNewUser:
+          type: boolean
+          example: false
+        user:
+          $ref: '#/components/schemas/UserLoginResponse'
+      required:
+        - accessToken
+        - tokenType
+        - expiresIn
+        - user
+
+
     ConversationId:
       description: The unique identifier of a conversation.
       type: string
@@ -83,7 +157,7 @@ components:
       properties:
         conversationId:
           $ref: '#/components/schemas/ConversationId'
-        name: 
+        name:
           type: string
           example: "Frank Miller"
         photoUrl:
@@ -91,6 +165,11 @@ components:
         lastMessage:
           $ref: '#/components/schemas/MessageSnippet'
         lastActivity:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        isGroup:
+          type: boolean
           example: false
         unreadCount:
           type: integer
@@ -98,16 +177,219 @@ components:
       required:
         - conversationId
         - name
-        - photoUrl
         - lastMessage
         - lastActivity
 
+    MessageId: 
+      description: The unique identifier of a message.
+      type: string
+      format: uuid
+      example: "323e4567-e89b-12d3-a456-426614174002"
+
+    MessageType:
+      description: The type of message.
+      type: string
+      enum: [text, photo]
+      example: "text"
+
+    Message:
+      description: A message in a conversation.
+      type: object
+      properties:
+        messageId:
+          $ref: '#/components/schemas/MessageId'
+        conversationId:
+          $ref: '#/components/schemas/ConversationId'
+        senderId:
+          $ref: '#/components/schemas/UserId'
+        createdAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:00:00Z"
+        type:
+          $ref: '#/components/schemas/MessageType'
+        content:
+          description: The content of the message. This can be text or a URL to a photo depending on the message type.
+          type: string
+          example: "Hello!"
+        deleted:
+          type: boolean
+          example: false
+          nullable: true
+        forwardedMessageId:
+          $ref: '#/components/schemas/MessageId'
+          nullable: true
+        replyToMessageId:
+          $ref: '#/components/schemas/MessageId'
+          nullable: true
+        editedAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:05:00Z"
+          nullable: true
+      required:
+        - messageId
+        - conversationId
+        - senderId
+        - createdAt
+        - type
+        - content
+
+    MessageStatus:
+      description: The status of a message for a user.
+      type: object
+      properties:
+        messageId:
+          $ref: '#/components/schemas/MessageId'
+        recipientId:
+          $ref: '#/components/schemas/UserId'
+        deliveredAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:01:00Z"
+          nullable: true
+        readAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:03:00Z"
+          nullable: true
+      required:
+        - messageId
+        - recipientId
+
+    ReactionId:
+      description: The unique identifier of a reaction.
+      type: string
+      format: uuid
+      example: "423e4567-e89b-12d3-a456-426614174003"
+    
+    Reaction:
+      description: A reaction to a message.
+      type: object
+      properties:
+        reactionId:
+          $ref: '#/components/schemas/ReactionId'
+        messageId:
+          $ref: '#/components/schemas/MessageId'
+        userId:
+          $ref: '#/components/schemas/UserId'
+        emoji:
+          type: string
+          example: "👍"
+        reactedAt:
+          type: string
+          format: date-time
+          example: "2024-01-01T12:02:00Z"
+      required:
+        - reactionId
+        - messageId
+        - userId
+        - emoji
+        - reactedAt
+
+  responses:
+    Unauthorized:
+      description: Unauthorized - missing or invalid token.
+      headers:
+        WWW-Authenticate:
+          $ref: '#/components/headers/WWW-Authenticate'
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            missing_token:
+              summary: Missing access token
+              value:
+                code: "AUTH_MISSING_TOKEN"
+                message: "Missing access token."
+                details: null
+
+    Forbidden:
+      description: Forbidden - authenticated but not allowed to access this resource.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            not_allowed:
+              summary: Access forbidden
+              value:
+                code: "AUTH_FORBIDDEN"
+                message: "You do not have permission to access this resource."
+                details: null
+
+    BadRequest:
+      description: Bad Request - invalid input.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            invalid_input:
+              summary: Invalid input data
+              value:
+                code: "INVALID_INPUT"
+                message: "The provided input data is invalid."
+                details:
+                  field_errors:
+                    username: "Username must be at least 3 characters long."
+
+    Conflict:
+      description: Conflict - username not allowed or other business conflict.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            resource_already_exists:
+              summary: Resource already exists
+              value:
+                code: "RESOURCE_CONFLICT"
+                message: "The username is already taken."
+                details: null
+
+    TooManyRequests:
+      description: Too Many Requests - rate limit exceeded.
+      headers:
+        Retry-After:
+          description: Seconds to wait before retrying.
+          schema:
+            type: string
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            rate_limit_exceeded:
+              summary: Rate limit exceeded
+              value:
+                code: "RATE_LIMIT_EXCEEDED"
+                message: "You have exceeded the number of allowed requests. Please try again later."
+                details: null
+
+    InternalError:
+      description: Internal Server Error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            internal_server_error:
+              summary: Internal server error
+              value:
+                code: "INTERNAL_SERVER_ERROR"
+                message: "An unexpected error occurred. Please try again later."
+                details: null
 
 
+security:
+  - bearerAuth: []
 
 paths:
   /auth/login:
     post:
+      security: []
       summary: User Login
       description: Authenticates a user and returns their user ID, username, and profile photo URL.
       operationId: doLogin
@@ -124,7 +406,15 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserLoginResponse'
+                $ref: "#/components/schemas/AuthResponse"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
   
   /conversations:
     get:
@@ -164,3 +454,23 @@ paths:
                 required:
                   - items
                   - nextCursor
+              examples:
+                sample_response:
+                  summary: Response with conversation summaries
+                  value:
+                    items:
+                      - conversationId: "223e4567-e89b-12d3-a456-426614174001"
+                        name: "Frank Miller"
+                        photoUrl: "http://example.com/photos/frank.jpg"
+                        lastMessage:
+                          type: "text"
+                          content: "Hey, how are you?"
+                          timestamp: "2024-01-01T12:00:00Z"
+                        lastActivity: "2024-01-01T12:00:00Z"
+                        isGroup: false
+                        unreadCount: 2
+                    nextCursor: "opaque-cursor-string"
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'

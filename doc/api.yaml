@@ -4,15 +4,30 @@ info:
   description: |
     WASAText is a messaging platform that allows users to 
     communicate with contacts and groups.
-  version: 0.0.1
 
+    ## Authentication
+    This API uses **Bearer JWT tokens** for authentication.
+    Send the token in every protected request in this header:
+
+    ```
+    Authorization: Bearer <accessToken>
+    ```
+
+    Token details:
+    - Algorithm: HS256 (example; verify with server implementation)
+    - Common claims:
+      - **sub**: user ID (UUID)
+      - **iat**: issued-at (unix timestamp)
+      - **exp**: expiry timestamp
+      - **iss**: "WASAText"
+
+  version: 0.0.1
 
 servers:
   - url: http://localhost:3000
 
-
 components:
-  
+
   securitySchemes:
     bearerAuth:
       type: http
@@ -25,7 +40,6 @@ components:
         - **iat**: issued-at (unix timestamp)
         - **exp**: expiry timestamp
         - **iss**: "WASAText"
-
 
   headers:
     WWW-Authenticate:
@@ -96,7 +110,14 @@ components:
       properties:
         accessToken:
           type: string
-          description: Bearer access token (JWT or similar).
+          description: |
+            JWT access token encoded using HS256.
+            Send it in the header: `Authorization: Bearer <accessToken>`.
+            Typical claims included:
+            - sub: user ID (UUID)
+            - iat: issued-at timestamp
+            - exp: expiration timestamp
+            - iss: "WASAText"
           example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
         tokenType:
           type: string
@@ -123,7 +144,6 @@ components:
         - tokenType
         - expiresIn
         - user
-
 
     ConversationId:
       description: The unique identifier of a conversation.
@@ -356,6 +376,7 @@ components:
           description: Seconds to wait before retrying.
           schema:
             type: string
+          example: "60"
       content:
         application/json:
           schema:
@@ -381,7 +402,6 @@ components:
                 code: "INTERNAL_SERVER_ERROR"
                 message: "An unexpected error occurred. Please try again later."
                 details: null
-
 
 security:
   - bearerAuth: []

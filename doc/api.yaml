@@ -44,8 +44,7 @@ components:
           type: string
           example: "Missing or invalid access token."
         details:
-          type: object
-          nullable: true # è davvero necessario?
+          type: object    
       required:
         - code
         - message
@@ -65,7 +64,6 @@ components:
       description: URL of the user's profile photo.
       type: string
       format: uri
-      nullable: true # è davvero necessario? 
       example: "http://example.com/photos/johndoe.jpg"
 
     UserInfo:
@@ -120,7 +118,6 @@ components:
         - expiresIn
         - user
 
-
     ConversationId:
       description: The unique identifier of a conversation.
       type: string
@@ -128,61 +125,60 @@ components:
       example: "223e4567-e89b-12d3-a456-426614174001"
 
     MessageType:
-      description: The type of message.
       type: string
       enum: [text, photo, text_with_photo]
-      example: "text"
+      example: "text_with_photo"
 
-    MessageSnippet:
-      description: A brief snippet of last message for each conversation.
+    MessageContent:
       type: object
       properties:
-        message:
-          $ref: "#/components/schemas/Message"
-          example:
-            messageId: "323e4567-e89b-12d3-a456-426614174002"
-            conversationId: "223e4567-e89b-12d3-a456-426614174001"
-            senderId: "123e4567-e89b-12d3-a456-426614174000"
-            createdAt: "2024-01-01T12:00:00Z"
-            type: "text"
-            content: "Hey, how are you bla bla bla bla bla bla bla bla?"
-        content:
+        text:
           type: string
-          maxLength: 50 # non voglio che sia lungo come Message.content siccome è solo un'anteprima
-          example: "Hey, how are you"
-      required: 
-        - type
-        - content
-      # si potrebbe sostituire con [type, content]
+        photoUrl:
+          $ref: '#/components/schemas/PhotoUrl'
+
+    MessageSnippet:
+      description: A brief snippet of the last message for each conversation.
+      type: object
+      properties:
+        messageId:
+          $ref: "#/components/schemas/MessageId"
+        contentPreview:
+          type: string
+          maxLength: 50
+          example: "Hey, how are you?"
+      required:
+        - messageId
+        - contentPreview
+      # si potrebbe sostituire con [messageId, contentPreview]
 
     ConversationSummary:
-      description: Summary of a conversation.
       type: object
       properties:
         conversationId:
           $ref: '#/components/schemas/ConversationId'
         name:
           type: string
-          example: "Frank Miller"
         photoUrl:
           $ref: '#/components/schemas/PhotoUrl'
+          nullable: true
         lastMessage:
           $ref: '#/components/schemas/MessageSnippet'
         lastActivity:
           type: string
           format: date-time
-          example: "2024-01-01T12:00:00Z"
         isGroup:
           type: boolean
-          example: false
+          default: false
         unreadCount:
           type: integer
-          example: 2
+          default: 0
       required:
         - conversationId
         - name
         - lastMessage
         - lastActivity
+
 
     MessageId: 
       description: The unique identifier of a message.
@@ -208,28 +204,18 @@ components:
         type:
           $ref: '#/components/schemas/MessageType'
         content:
-          description: The content of the message. This can be text, photo or both.
-          anyOf:
-            - type: string
-              description: Text content of the message.
-              example: "Hello!"
-            - $ref: '#/components/schemas/PhotoUrl'
-              example: "http://example.com/photos/messagephoto.jpg" 
+          $ref: '#/components/schemas/MessageContent'
         deleted:
           type: boolean
           example: false
-          nullable: true # è davvero necessario?
         forwardedMessageId:
           $ref: '#/components/schemas/MessageId'
-          nullable: true # è davvero necessario?
         replyToMessageId:
           $ref: '#/components/schemas/MessageId'
-          nullable: true # è davvero necessario?
         editedAt: # vediamo se serve implementare questa funzionalità
           type: string
           format: date-time
-          example: "2024-01-01T12:05:00Z"
-          nullable: true # è davvero necessario?
+          example: "2024-01-01T12:05:00Z"  
       required:
         - messageId
         - conversationId
@@ -244,7 +230,7 @@ components:
       properties:
         messageId:
           $ref: '#/components/schemas/MessageId'
-        recipientsId:
+        recipientIds:
           type: array
           items: 
             $ref: '#/components/schemas/UserId'
@@ -252,11 +238,10 @@ components:
         readAt: # orario in cui l'ultimo dei riceventi ha letto il messaggio, se nullo significa che almeno 1 ricevente non l'ha letto
           type: string
           format: date-time
-          example: "2024-01-01T12:03:00Z"
-          nullable: true # è davvero necessario?
+          example: "2024-01-01T12:03:00Z"    
       required:
         - messageId
-        - recipientsId
+        - recipientIds
 
     ReactionId:
       description: The unique identifier of a reaction.
@@ -305,7 +290,7 @@ components:
                 code: "AUTH_MISSING_TOKEN"
                 message: "Missing access token."
                 details: null
-
+    
     Forbidden:
       description: Forbidden - authenticated but not allowed to access this resource.
       content:
@@ -451,6 +436,33 @@ paths:
           $ref: '#/components/responses/Conflict'
         '500':
           $ref: '#/components/responses/InternalError'
+
+  /me/photo:
+    patch:
+      summary: Sets my profile photo URL
+      description: Sets the authenticated user's profile photo URL.
+      operationId: setMyPhoto
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PhotoUrl"
+      responses:
+        '200':
+          description: Profile photo URL set successfully.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserInfo"
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
   
   /conversations:
     get:
@@ -486,10 +498,9 @@ paths:
                       $ref: '#/components/schemas/ConversationSummary'
                   nextCursor:
                     type: string
-                    nullable: true # è davvero necessario?
+                    
                 required:
                   - items
-                  - nextCursor
               examples:
                 sample_response:
                   summary: Response with conversation summaries
@@ -497,14 +508,13 @@ paths:
                     items:
                       - conversationId: "223e4567-e89b-12d3-a456-426614174001"
                         name: "Frank Miller"
-                        photoUrl: "http://example.com/photos/frank.jpg"
+                        photoUrl: "http://example.com/photos/frankmiller.jpg"
                         lastMessage:
-                          type: "text"
-                          content: "Hey, how are you?"
-                          timestamp: "2024-01-01T12:00:00Z"
+                          messageId: "323e4567-e89b-12d3-a456-426614174002"
+                          contentPreview: "Hey, how are you"
                         lastActivity: "2024-01-01T12:00:00Z"
                         isGroup: false
-                        unreadCount: 2
+                        unreadCount: 1
                     nextCursor: "opaque-cursor-string"
         '401':
           $ref: '#/components/responses/Unauthorized'

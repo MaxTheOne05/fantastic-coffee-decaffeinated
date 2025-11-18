@@ -16,21 +16,22 @@ components:
     bearerAuth:
       type: http
       scheme: bearer
-      bearerFormat: JWT
+      bearerFormat: user-id
       description: |
-        JWT access token using HS256.
-        Standard claims:
-        - **sub**: user ID (UUID)
-        - **iat**: issued-at (unix timestamp)
-        - **exp**: expiry timestamp
-        - **iss**: "WASAText"
+        Simplified bearer authentication used for the course project.
+        The "token" is NOT a JWT: it is the user identifier (UUID) returned by /auth/login.
+        Clients must send this value in the Authorization header:
+        Authorization: Bearer <userId>
+        NOTE: No signature verification or standard IdP flows are performed in this project.
+
 
   headers:
     WWW-Authenticate:
       description: 'Authentication method required (Bearer).'
       schema:
         type: string
-      example: 'Bearer realm="WASAText"'  
+      example: 'Bearer realm="WASAText", error="invalid_token", error_description="Provide userId as bearer token"'
+  
 
   schemas:
 
@@ -78,27 +79,25 @@ components:
           $ref: '#/components/schemas/PhotoUrl'
 
     AuthResponse:
-      description: Authentication response including access token and user profile.
+      description: |
+       Authentication response. NOTE: in this simplified project the "accessToken" is the user identifier.
       type: object
       properties:
         accessToken:
           type: string
           description: |
-            JWT access token encoded using HS256.
-            Send it in the header: `Authorization: Bearer <accessToken>`.
-            Typical claims included:
-            - sub: user ID (UUID)
-            - iat: issued-at timestamp
-            - exp: expiration timestamp
-            - iss: "WASAText"
-          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+            In this simplified implementation the accessToken contains the user's identifier (UUID).
+            The client must send this value in the Authorization header for subsequent requests:
+            Authorization: Bearer <accessToken>
+            This is NOT a JWT and is not cryptographically signed.
+          example: "123e4567-e89b-12d3-a456-426614174000"
         tokenType:
           type: string
           example: "Bearer"
         expiresIn:
           type: integer
-          description: Expiry in seconds.
-          example: 3600
+          description: Expiry in seconds (optional; may be omitted or set to 0 for no expiry in this simplified project).
+          example: 0
         issuedAt:
           type: string
           format: date-time
@@ -106,7 +105,7 @@ components:
         expiresAt:
           type: string
           format: date-time
-          example: "2025-11-16T13:00:00Z"
+          example: "0000-00-00T00:00:00Z"
         isNewUser:
           type: boolean
           example: false
@@ -115,7 +114,6 @@ components:
       required:
         - accessToken
         - tokenType
-        - expiresIn
         - user
 
     ConversationId:
@@ -275,7 +273,7 @@ components:
 
   responses:
     Unauthorized:
-      description: Unauthorized - missing or invalid token.
+      description: Unauthorized - missing or invalid user identifier in Authorization header.
       headers:
         WWW-Authenticate:
           $ref: '#/components/headers/WWW-Authenticate'
@@ -285,11 +283,12 @@ components:
             $ref: '#/components/schemas/Error'
           examples:
             missing_token:
-              summary: Missing access token
+              summary: Missing or invalid user identifier
               value:
-                code: "AUTH_MISSING_TOKEN"
-                message: "Missing access token."
+                code: "AUTH_MISSING_USERID"
+                message: "Missing or invalid user identifier in Authorization header."
                 details: null
+
     
     Forbidden:
       description: Forbidden - authenticated but not allowed to access this resource.

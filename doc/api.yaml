@@ -14,15 +14,15 @@ components:
 
   securitySchemes:
     bearerAuth:
-      type: http
-      scheme: bearer
-      bearerFormat: user-id
       description: |
         Simplified bearer authentication used for the course project.
         The "token" is NOT a JWT: it is the user identifier (UUID) returned by /auth/login.
         Clients must send this value in the Authorization header:
         Authorization: Bearer <userId>
         NOTE: No signature verification or standard IdP flows are performed in this project.
+      type: http
+      scheme: bearer
+      bearerFormat: user-id
 
 
   headers:
@@ -39,12 +39,21 @@ components:
       type: object
       properties:
         code:
+          description: A machine-readable error code.
           type: string
+          pattern: "^[A-Z_]+$"
+          minLength: 1
+          maxLength: 20
           example: "AUTH_FAILED"
         message:
+          description: A human-readable message providing more details about the error.
           type: string
+          pattern: "^[\\s\\S]*$"
+          minLength: 0
+          maxLength: 1000
           example: "Missing or invalid access token."
         details:
+          description: Additional details about the error (optional).
           type: object    
       required:
         - code
@@ -54,17 +63,26 @@ components:
       description: The unique identifier of a user.
       type: string
       format: uuid
+      pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+      minLength: 36
+      maxLength: 36
       example: "123e4567-e89b-12d3-a456-426614174000"
 
     Username:
       description: The username of the user.
       type: string
+      pattern: "^[a-zA-Z0-9_]{3,30}$"
+      minLength: 3
+      maxLength: 30
       example: "johndoe"
 
     PhotoUrl:
       description: URL of the user's profile photo.
       type: string
       format: uri
+      pattern: "^(https?|ftp)://[^\\s/$.?#].[^\\s]*$"
+      minLength: 0
+      maxLength: 1000
       example: "http://example.com/photos/johndoe.jpg"
 
     UserInfo:
@@ -92,21 +110,35 @@ components:
             This is NOT a JWT and is not cryptographically signed.
           example: "123e4567-e89b-12d3-a456-426614174000"
         tokenType:
+          description: Type of the token issued.
           type: string
+          pattern: "^[\\s\\S]*$"
+          minLength: 0
+          maxLength: 1000
           example: "Bearer"
         expiresIn:
-          type: integer
           description: Expiry in seconds (optional; may be omitted or set to 0 for no expiry in this simplified project).
+          type: integer
+          minimum: 0
           example: 0
         issuedAt:
+          description: Issuance timestamp in ISO 8601 format (optional).
           type: string
           format: date-time
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+          minLength: 20
+          maxLength: 20
           example: "2025-11-16T12:00:00Z"
         expiresAt:
+          description: Expiry timestamp in ISO 8601 format (optional; may be omitted or set to "0000-00-00T00:00:00Z" for no expiry in this simplified project).
           type: string
           format: date-time
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+          minLength: 20
+          maxLength: 20
           example: "0000-00-00T00:00:00Z"
         isNewUser:
+          description: Indicates if the user was newly created during this login.
           type: boolean
           example: false
         user:
@@ -120,18 +152,31 @@ components:
       description: The unique identifier of a conversation.
       type: string
       format: uuid
+      pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+      minLength: 36
+      maxLength: 36
       example: "223e4567-e89b-12d3-a456-426614174001"
 
     MessageType:
+      description: The type of the message.
       type: string
+      pattern: "^(text|photo|text_with_photo)$"
+      minLength: 4
+      maxLength: 15
       enum: [text, photo, text_with_photo]
       example: "text_with_photo"
 
     MessageContent:
+      description: The content of the message.
       type: object
       properties:
         text:
+          description: Text content of the message (for text and text_with_photo types).
           type: string
+          pattern: "^[\\s\\S]*$"
+          minLength: 0
+          maxLength: 1000
+          example: "Hello, this is a message with a photo."
         photoUrl:
           $ref: '#/components/schemas/PhotoUrl'
 
@@ -142,7 +187,10 @@ components:
         messageId:
           $ref: "#/components/schemas/MessageId"
         contentPreview:
+          description: A short preview of the message content (first 50 characters).
           type: string
+          pattern: "^[\\s\\S]*$"
+          minLength: 0
           maxLength: 50
           example: "Hey, how are you?"
       required:
@@ -151,25 +199,38 @@ components:
       # si potrebbe sostituire con [messageId, contentPreview]
 
     ConversationSummary:
+      description: A summary of a conversation for listing conversations.
       type: object
       properties:
         conversationId:
           $ref: '#/components/schemas/ConversationId'
         name:
+          description: The name of the conversation (contact name or group name).
           type: string
+          pattern: "^[\\s\\S]{1,100}$"
+          minLength: 1
+          maxLength: 100
+          example: "Family Group"
         photoUrl:
           $ref: '#/components/schemas/PhotoUrl'
-          nullable: true
         lastMessage:
           $ref: '#/components/schemas/MessageSnippet'
         lastActivity:
+          description: Timestamp of the last activity in the conversation.
           type: string
           format: date-time
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+          minLength: 20
+          maxLength: 20
+          example: "2024-05-01T15:30:00Z"
         isGroup:
+          description: Indicates if the conversation is a group chat.
           type: boolean
           default: false
         unreadCount:
+          description: Number of unread messages in the conversation.
           type: integer
+          minimum: 0
           default: 0
       required:
         - conversationId
@@ -182,6 +243,9 @@ components:
       description: The unique identifier of a message.
       type: string
       format: uuid
+      pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+      minLength: 36
+      maxLength: 36
       example: "323e4567-e89b-12d3-a456-426614174002"
 
     
@@ -196,14 +260,19 @@ components:
         senderId:
           $ref: '#/components/schemas/UserId'
         createdAt:
+          description: Timestamp when the message was created.
           type: string
           format: date-time
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+          minLength: 20
+          maxLength: 20
           example: "2024-01-01T12:00:00Z"
         type:
           $ref: '#/components/schemas/MessageType'
         content:
           $ref: '#/components/schemas/MessageContent'
         deleted:
+          description: Indicates if the message has been deleted.
           type: boolean
           example: false
         forwardedMessageId:
@@ -211,8 +280,12 @@ components:
         replyToMessageId:
           $ref: '#/components/schemas/MessageId'
         editedAt: # vediamo se serve implementare questa funzionalità
+          description: Timestamp when the message was last edited.
           type: string
           format: date-time
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+          minLength: 20
+          maxLength: 20
           example: "2024-01-01T12:05:00Z"  
       required:
         - messageId
@@ -229,13 +302,19 @@ components:
         messageId:
           $ref: '#/components/schemas/MessageId'
         recipientIds:
+          description: List of user IDs who have received the message.
           type: array
+          minItems: 1
+          maxItems: 1000 # non ci saranno gruppi con più di 1000 membri
           items: 
             $ref: '#/components/schemas/UserId'
-          minItems: 1
         readAt: # orario in cui l'ultimo dei riceventi ha letto il messaggio, se nullo significa che almeno 1 ricevente non l'ha letto
+          description: Timestamp when the message was read by all recipients.
           type: string
           format: date-time
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+          minLength: 20
+          maxLength: 20
           example: "2024-01-01T12:03:00Z"    
       required:
         - messageId
@@ -245,6 +324,9 @@ components:
       description: The unique identifier of a reaction.
       type: string
       format: uuid
+      pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
+      minLength: 36
+      maxLength: 36
       example: "423e4567-e89b-12d3-a456-426614174003"
     
     Reaction:
@@ -258,11 +340,19 @@ components:
         userId:
           $ref: '#/components/schemas/UserId'
         emoji:
+          description: The emoji used for the reaction.
           type: string
+          pattern: "^[\\p{Emoji}]$"
+          minLength: 1
+          maxLength: 1
           example: "👍"
         reactedAt:
+          description: Timestamp when the reaction was made.
           type: string
           format: date-time
+          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+          minLength: 20
+          maxLength: 20
           example: "2024-01-01T12:02:00Z"
       required:
         - reactionId
@@ -367,6 +457,48 @@ components:
                 code: "INTERNAL_SERVER_ERROR"
                 message: "An unexpected error occurred. Please try again later."
                 details: null
+    
+    NotFound:
+      description: Not Found - resource does not exist.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            resource_not_found:
+              summary: Resource not found
+              value:
+                code: "RESOURCE_NOT_FOUND"
+                message: "The requested resource was not found."
+                details: null
+
+    PayloadTooLarge:
+      description: Payload Too Large - uploaded file exceeds size limit.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            payload_too_large:
+              summary: Uploaded file too large
+              value:
+                code: "PAYLOAD_TOO_LARGE"
+                message: "The uploaded file exceeds the maximum allowed size."
+                details: null
+
+    UnsupportedMediaType:
+      description: Unsupported Media Type - uploaded file type is not supported.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          examples:
+            unsupported_media_type:
+              summary: Uploaded file type not supported
+              value:
+                code: "UNSUPPORTED_MEDIA_TYPE"
+                message: "The uploaded file type is not supported."
+                details: null
 
 security:
   - bearerAuth: []
@@ -460,5 +592,78 @@ paths:
           $ref: '#/components/responses/Unauthorized'
         '403':
           $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+
+  /conversations/{conversationId}/messages:
+    post:
+      summary: Send a message
+      description: Sends a message in the specified conversation.
+      operationId: sendMessage
+      parameters:
+        - name: conversationId
+          in: path
+          required: true
+          schema:
+            $ref: '#/components/schemas/ConversationId'
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                # bisognera stabilire delle regole di validazione lato server per i campi in base al tipo di messaggio
+                type:
+                  $ref: '#/components/schemas/MessageType'
+                text:
+                  type: string
+                photo:
+                  type: string
+                  format: binary
+                  description: Image file. Server will upload it and set content.photoUrl in the returned Message.
+                forwardedMessageId:
+                  $ref: '#/components/schemas/MessageId'
+                replyToMessageId:
+                  $ref: '#/components/schemas/MessageId'
+                clientMessageId: # Sarà unico per ogni messaggio inviato dal client serve per evitare che un messaggio venga inviato più volte in caso di retry
+                  type: string
+                  description: Client-generated id for idempotency (recommend UUID v4)
+              required:
+                - type
+      responses:
+        '200':
+          description: Returned when clientMessageId already exists for (conversationId,senderId); no new message created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '201':
+          description: Message sent successfully.
+          headers:
+            Location:
+              description: URL of the newly created message resource.
+              schema:
+                type: string
+                example: /conversations/123/messages/456
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Message'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'

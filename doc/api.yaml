@@ -1,14 +1,32 @@
 openapi: 3.0.0
+
+
+
+
 info:
   title: WASAText API
   description: |
     WASAText is a PC based messaging platform that allows 
     users to communicate with contacts and groups.
+  version: 3.0.0
 
-  version: 0.0.1
+
+
+
+tags:
+  - name: login
+    description: Operations related to user authentication and session management.
+  - name: user
+    description: Operations related to user profile management.
+
+
+
 
 servers:
   - url: http://localhost:3000
+
+
+
 
 components:
 
@@ -33,9 +51,11 @@ components:
   
   schemas:
 
+    # ERRORS
     Error:
       type: object
       properties:
+        
         code:
           description: A machine-readable error code.
           type: string
@@ -43,6 +63,7 @@ components:
           minLength: 1
           maxLength: 20
           example: "AUTH_FAILED"
+        
         message:
           description: A human-readable message providing more details about the error.
           type: string
@@ -50,15 +71,21 @@ components:
           minLength: 0
           maxLength: 1000
           example: "Missing or invalid access token."
+        
         details:
           description: Additional details about the error (optional).
-          type: object    
+          type: object
+          nullable: true
+          
+      
       required:
         - code
         - message
 
-    UserId:
-      description: The unique identifier of a user.
+
+    # IDENTIFIERS
+    Id:
+      description: Generic UUID identifier used as base for domain IDs.
       type: string
       format: uuid
       pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
@@ -66,256 +93,204 @@ components:
       maxLength: 36
       example: "123e4567-e89b-12d3-a456-426614174000"
 
+    UserId:
+      description: "Identifier for a user (alias of Id)."
+      allOf:
+        - $ref: '#/components/schemas/Id'
+      example: "123e4567-e89b-12d3-a456-426614174000"
+
+    MessageId:
+      description: "Identifier for a message (alias of Id)."
+      allOf:
+        - $ref: '#/components/schemas/Id'
+      example: "323e4567-e89b-12d3-a456-426614174002"
+
+    ConversationId:
+      description: "Identifier for a conversation (alias of Id)."
+      allOf:
+        - $ref: '#/components/schemas/Id'
+      example: "223e4567-e89b-12d3-a456-426614174001"
+
+
+    # USER
     Username:
       description: The username of the user.
       type: string
-      pattern: "^[a-zA-Z0-9_]{3,30}$"
+      pattern: "^[a-zA-Z0-9_]{3,16}$"
       minLength: 3
-      maxLength: 30
+      maxLength: 16
       example: "johndoe"
 
-    PhotoUrl:
-      description: URL of the user's profile photo.
-      type: string
-      format: uri
-      pattern: "^(https?|ftp)://[^\\s/$.?#].[^\\s]*$"
-      minLength: 0
-      maxLength: 1000
+
+    UserPhotoUrl:
+      description: A URL pointing to the user's profile photo.
+      allOf:
+        - $ref: '#/components/schemas/PhotoUrl'
       example: "http://example.com/photos/johndoe.jpg"
 
-    UserInfo:
-      description: Response payload for user login.
+    User:
+      description: A user in the WASAText system.
       type: object
       properties:
+
         userId:
           $ref: '#/components/schemas/UserId'
+        
         username:
           $ref: '#/components/schemas/Username'
+        
         photoUrl:
-          $ref: '#/components/schemas/PhotoUrl'
+          $ref: '#/components/schemas/UserPhotoUrl'
 
-    AuthResponse:
-      description: |
-       Authentication response. NOTE: in this simplified project the "accessToken" is the user identifier.
-      type: object
-      properties:
-        accessToken:
-          type: string
-          description: |
-            In this simplified implementation the accessToken contains the user's identifier (UUID).
-            The client must send this value in the Authorization header for subsequent requests:
-            Authorization: Bearer <accessToken>
-            This is NOT a JWT and is not cryptographically signed.
-          example: "123e4567-e89b-12d3-a456-426614174000"
-        tokenType:
-          description: Type of the token issued.
-          type: string
-          pattern: "^[\\s\\S]*$"
-          minLength: 0
-          maxLength: 1000
-          example: "Bearer"
-        expiresIn:
-          description: Expiry in seconds (optional; may be omitted or set to 0 for no expiry in this simplified project).
-          type: integer
-          minimum: 0
-          example: 0
-        issuedAt:
-          description: Issuance timestamp in ISO 8601 format (optional).
-          type: string
-          format: date-time
-          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
-          minLength: 20
-          maxLength: 20
-          example: "2025-11-16T12:00:00Z"
-        expiresAt:
-          description: Expiry timestamp in ISO 8601 format (optional; may be omitted or set to "0000-00-00T00:00:00Z" for no expiry in this simplified project).
-          type: string
-          format: date-time
-          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
-          minLength: 20
-          maxLength: 20
-          example: "0000-00-00T00:00:00Z"
-        isNewUser:
-          description: Indicates if the user was newly created during this login.
-          type: boolean
-          example: false
-        user:
-          $ref: '#/components/schemas/UserInfo'
       required:
-        - accessToken
-        - tokenType
-        - user
+        - userId 
+        - username
 
-    ConversationId:
-      description: The unique identifier of a conversation.
-      type: string
-      format: uuid
-      pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-      minLength: 36
-      maxLength: 36
-      example: "223e4567-e89b-12d3-a456-426614174001"
-
-    MessageType:
-      description: The type of the message.
-      type: string
-      pattern: "^(text|photo|text_with_photo)$"
-      minLength: 4
-      maxLength: 15
-      enum: [text, photo, text_with_photo]
-      example: "text_with_photo"
-
-    MessageContent:
-      description: The content of the message.
+    
+    # CONVERSATION
+    Chat:
+      description: A chat conversation, between two users.
       type: object
       properties:
-        text:
-          description: Text content of the message (for text and text_with_photo types).
-          type: string
-          pattern: "^[\\s\\S]*$"
-          minLength: 0
-          maxLength: 1000
-          example: "Hello, this is a message with a photo."
-        photoUrl:
-          $ref: '#/components/schemas/PhotoUrl'
-
-    MessageSnippet:
-      description: A brief snippet of the last message for each conversation.
-      type: object
-      properties:
-        messageId:
-          $ref: "#/components/schemas/MessageId"
-        contentPreview:
-          description: A short preview of the message content (first 50 characters).
-          type: string
-          pattern: "^[\\s\\S]*$"
-          minLength: 0
-          maxLength: 50
-          example: "Hey, how are you?"
-      required:
-        - messageId
-        - contentPreview
-      # si potrebbe sostituire con [messageId, contentPreview]
-
-    ConversationSummary:
-      description: A summary of a conversation for listing conversations.
-      type: object
-      properties:
+        
         conversationId:
           $ref: '#/components/schemas/ConversationId'
+        
+        participantIds:
+          description: List of user IDs participating in the chat (exactly 2 for direct chats).
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            $ref: '#/components/schemas/UserId'
+      
+      required:
+        - conversationId
+        - participantIds
+
+    Group:
+      description: A group conversation, between multiple users.
+      type: object
+      properties:
+
+        conversationId:
+          $ref: '#/components/schemas/ConversationId'
+        
         name:
-          description: The name of the conversation (contact name or group name).
+          description: The name of the group.
           type: string
           pattern: "^[\\s\\S]{1,100}$"
           minLength: 1
           maxLength: 100
           example: "Family Group"
+        
         photoUrl:
           $ref: '#/components/schemas/PhotoUrl'
-        lastMessage:
-          $ref: '#/components/schemas/MessageSnippet'
-        lastActivity:
-          description: Timestamp of the last activity in the conversation.
-          type: string
-          format: date-time
-          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
-          minLength: 20
-          maxLength: 20
-          example: "2024-05-01T15:30:00Z"
-        isGroup:
-          description: Indicates if the conversation is a group chat.
-          type: boolean
-          default: false
-        unreadCount:
-          description: Number of unread messages in the conversation.
-          type: integer
-          minimum: 0
-          default: 0
+       
+        memberIds:
+          description: List of user IDs who are members of the group.
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/UserId'
+      
       required:
         - conversationId
         - name
-        - lastMessage
-        - lastActivity
+        - memberIds
 
-    MessageId: 
-      description: The unique identifier of a message.
+    Conversation:
+      description: A conversation, which can be either a chat or a group.
+      type: object
+      oneOf:
+        - $ref: '#/components/schemas/Chat'
+        - $ref: '#/components/schemas/Group'
+
+    
+    # CONTENT TYPES
+    PhotoUrl:
+      description: A URL pointing to a photo image.
       type: string
-      format: uuid
-      pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-      minLength: 36
-      maxLength: 36
-      example: "323e4567-e89b-12d3-a456-426614174002"
+      format: uri
+      pattern: "^(https?|ftp)://.+$"
+      minLength: 1
+      maxLength: 1000
+      example: "http://example.com/photos/johndoe.jpg"
+
+
+    Text:
+      description: A block of text.
+      type: string
+      pattern: "^[\\s\\S]{0,1000}$"
+      minLength: 0
+      maxLength: 1000
+      example: "Hello, this is a message."
+
+
+    # MESSAGE
+    MessagePhotoUrl:
+      description: A URL pointing to a photo attached to a message.
+      allOf:
+        - $ref: '#/components/schemas/PhotoUrl'
+      example: "http://example.com/messages/photos/photo123.jpg"
 
     Message:
-      description: A message in a conversation.
+      description: The type of a message.
       type: object
       properties:
-        messageId: # deve essere diverso da forwardedMessageId e replyToMessageId
-          $ref: '#/components/schemas/MessageId' 
+
+        messageId:
+          $ref: '#/components/schemas/MessageId'
+        
         conversationId:
           $ref: '#/components/schemas/ConversationId'
+        
         senderId:
           $ref: '#/components/schemas/UserId'
+        
         createdAt:
           description: Timestamp when the message was created.
           type: string
           format: date-time
-          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+          pattern: "^[0-9T:\\-+\\.Z]+$"
           minLength: 20
           maxLength: 20
           example: "2024-01-01T12:00:00Z"
-        type:
-          $ref: '#/components/schemas/MessageType'
+        
         content:
-          $ref: '#/components/schemas/MessageContent'
-        deleted:
-          description: Indicates if the message has been deleted.
-          type: boolean
-          example: false
-        forwardedMessageId:
-          $ref: '#/components/schemas/MessageId'
-        replyToMessageId:
-          $ref: '#/components/schemas/MessageId'
-        editedAt: # vediamo se serve implementare questa funzionalità
-          description: Timestamp when the message was last edited.
+          description: The content of the message, could be text and/or photo URL.
+          type: object
+          properties:
+            text:
+              $ref: '#/components/schemas/Text'
+            photoUrl:
+              $ref: '#/components/schemas/MessagePhotoUrl'
+          additionalProperties: false
+          minProperties: 1
+          maxProperties: 2
+        
+        status:
+          description: The status of the message.
           type: string
-          format: date-time
-          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
-          minLength: 20
-          maxLength: 20
-          example: "2024-01-01T12:05:00Z"  
+          pattern: "^(sent|read)$"
+          minLength: 4
+          maxLength: 4
+          enum:
+            - sent
+            - read
+          example: "sent"
+      
       required:
         - messageId
         - conversationId
         - senderId
         - createdAt
-        - type
         - content
+        - status
+              
 
-    MessageStatus:
-      description: The status of a message for a user.
-      type: object
-      properties:
-        messageId:
-          $ref: '#/components/schemas/MessageId'
-        recipientIds:
-          description: List of user IDs who have received the message.
-          type: array
-          minItems: 1
-          maxItems: 1000 # non ci saranno gruppi con più di 1000 membri
-          items: 
-            $ref: '#/components/schemas/UserId'
-        readAt: # orario in cui l'ultimo dei riceventi ha letto il messaggio, se nullo significa che almeno 1 ricevente non l'ha letto
-          description: Timestamp when the message was read by all recipients.
-          type: string
-          format: date-time
-          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
-          minLength: 20
-          maxLength: 20
-          example: "2024-01-01T12:03:00Z"    
-      required:
-        - messageId
-        - recipientIds
-
+    # REACTION
     ReactionId:
       description: The unique identifier of a reaction.
       type: string
@@ -329,33 +304,42 @@ components:
       description: A reaction to a message.
       type: object
       properties:
+        
         reactionId:
           $ref: '#/components/schemas/ReactionId'
+        
         messageId:
           $ref: '#/components/schemas/MessageId'
+        
         userId:
           $ref: '#/components/schemas/UserId'
+        
         emoji:
           description: The emoji used for the reaction.
           type: string
           pattern: "^[\\s\\S]{1,4}$"
           minLength: 1
-          maxLength: 4
-          example: "👍"
+          maxLength: 5
+          example: "1F44D" #👍
+        
         reactedAt:
           description: Timestamp when the reaction was made.
           type: string
           format: date-time
-          pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
+          pattern: "^[0-9T:\\-+\\.Z]+$"
           minLength: 20
           maxLength: 20
           example: "2024-01-01T12:02:00Z"
+
       required:
         - reactionId
         - messageId
         - userId
         - emoji
         - reactedAt
+
+
+
 
   responses:
     Unauthorized:
@@ -426,8 +410,8 @@ components:
         Retry-After:
           description: Seconds to wait before retrying.
           schema:
-            type: string
-          example: "60"
+            type: integer
+          example: 60
       content:
         application/json:
           schema:
@@ -496,37 +480,56 @@ components:
                 message: "The uploaded file type is not supported."
                 details: null
 
+
+
+
 security:
   - bearerAuth: []
 
+
+
+
 paths:
 
-  /auth/login:
+  # LOGIN
+  /session:
     post:
-      security: []
-      summary: User Login
-      description: Authenticates a user and returns their user ID, username, and profile photo URL.
+      tags: ["login"]
+      summary: logs in the user
+      description: |-
+        If the user does not exist, it will be created,
+        and an identifier is returned.
+        If the user exists, the user identifier is returned.
       operationId: doLogin
       requestBody:
-        description: User login request payload.
+        description: User details.
         required: true
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Username"
+              type: object
+              properties:
+                username:
+                  $ref: "#/components/schemas/Username"
       responses:
         '200':
-          description: Successful login.
+          description: Login successful.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthResponse"
+                type: object
+                properties:
+                  userId:
+                    $ref: "#/components/schemas/UserId"
         '201':
-          description: New user created and logged in.
+          description: User created and login successful.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/AuthResponse"
+                type: object
+                properties:
+                  userId:
+                    $ref: "#/components/schemas/UserId"
         '400':
           $ref: '#/components/responses/BadRequest'
         '409':
@@ -536,8 +539,11 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+
+  # SET USER PROFILE
   /me/username:
     patch:
+      tags: ["user"]
       summary: Sets my username
       description: Sets the authenticated user's username.
       operationId: setMyUserName
@@ -553,7 +559,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserInfo"
+                $ref: "#/components/schemas/User"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -567,6 +573,7 @@ paths:
 
   /me/photo:
     patch:
+      tags: ["user"]
       summary: Sets my profile photo URL
       description: Sets the authenticated user's profile photo URL.
       operationId: setMyPhoto
@@ -582,7 +589,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UserInfo"
+                $ref: "#/components/schemas/User"
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -591,6 +598,46 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '500':
           $ref: '#/components/responses/InternalError'
+
+
+  # SEARCH USER BY USERNAME
+  /users:
+    get:
+      tags: ["user"]
+      summary: Search users by username.
+      description: | 
+        Searches for users whose usernames match the provided query.
+      operationId: searchUser
+      parameters:
+        - name: username
+          description: The username to search for (full match).
+          in: query
+          required: true
+          schema:
+            $ref: '#/components/schemas/Username'
+      responses:
+        '200':
+          description: The user matching the exact username. Null if not found.
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/User'
+                nullable: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+
+
+
+#TOCHECK
+
 
   /conversations/{conversationId}/messages:
     post:

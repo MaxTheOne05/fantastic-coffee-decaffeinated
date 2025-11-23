@@ -218,7 +218,6 @@ components:
       maxLength: 1000
       example: "http://example.com/photos/johndoe.jpg"
 
-
     Text:
       description: A block of text.
       type: string
@@ -634,6 +633,69 @@ paths:
           $ref: '#/components/responses/InternalError'
 
 
+  # UPLOAD PHOTO
+  /media/photos:
+    post:
+      tags:
+        - media
+      summary: Upload a photo file.
+      description: Uploads a single photo using multipart/form-data and returns its accessible URL.
+
+      operationId: uploadPhoto
+
+      requestBody:
+        description: The photo file that will be uploaded to the server. Only one file is allowed.
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              description: Container for the uploaded photo file.
+              properties:
+                file:
+                  description: The binary photo file to upload.
+                  type: string
+                  format: binary
+                  pattern: "^[\\s\\S]*$"
+                  minLength: 1
+                  maxLength: 10485760 # 10 MB
+                  example: "(binary image data)"
+              required:
+                - file
+
+      responses:
+        '201':
+          description: Photo uploaded successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: The response containing the public URL of the uploaded photo.
+                properties:
+                  photoUrl:
+                    description: The URL of the uploaded photo.
+                    type: string
+                    format: uri
+                    minLength: 1
+                    maxLength: 1000
+                    pattern: "^https?://.+$"
+                    example: "https://example.com/photos/abc123.jpg"
+                required:
+                  - photoUrl
+
+        '400':
+          description: Bad request — the upload request is invalid.
+        '401':
+          description: Unauthorized — authentication required.
+        '413':
+          description: Payload too large — the file exceeds allowed size.
+        '415':
+          description: Unsupported media type — only images are allowed.
+        '500':
+          description: Server error during the upload process.
+
+
+
 
 
 #TOCHECK
@@ -657,16 +719,12 @@ paths:
             schema:
               type: object
               properties:
-                # bisognera stabilire delle regole di validazione lato server per i campi in base al tipo di messaggio
-                type:
-                  $ref: '#/components/schemas/MessageType'
+                
                 text:
                   description: Text content of the message (for text and text_with_photo types).
-                  type: string
-                  pattern: "^[\\s\\S]*$"
-                  minLength: 0
-                  maxLength: 1000
+                  $ref: '#/components/schemas/Text'
                   example: "Hello, this is a message with a photo." 
+                
                 photo:
                   description: Image file. Server will upload it and set content.photoUrl in the returned Message.
                   type: string
@@ -674,10 +732,9 @@ paths:
                   pattern: "^[\\s\\S]*$"
                   minLength: 1
                   maxLength: 10485760 # 10 MB
-                forwardedMessageId:
-                  $ref: '#/components/schemas/MessageId'
-                replyToMessageId:
-                  $ref: '#/components/schemas/MessageId'
+                  example: "(binary image data)"
+                
+                
                 clientMessageId: # Sarà unico per ogni messaggio inviato dal client serve per evitare che un messaggio venga inviato più volte in caso di retry
                   description: Client-generated id for idempotency (recommend UUID v4)
                   type: string

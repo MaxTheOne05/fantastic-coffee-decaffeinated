@@ -18,8 +18,14 @@ tags:
     description: Operations related to user authentication and session management.
   - name: user
     description: Operations related to user profile management.
-
-
+  - name: media
+    description: Operations related to media uploads and management.
+  - name: messages
+    description: Operations related to sending, deleting, forwarding messages and adding reactions.
+  - name: group
+    description: Operations related to setting group name, group photo, adding and removing participants.
+  - name: conversations
+    description: Operations related to showing conversations and messages.
 
 
 servers:
@@ -47,8 +53,11 @@ components:
       description: 'Authentication method required (Bearer).'
       schema:
         type: string
+        minLength: 1
+        maxLength: 1000
+        pattern: '^.*$'
       example: 'Bearer realm="WASAText", error="invalid_token", error_description="Provide userId as bearer token"'
-  
+
   schemas:
 
     # ERRORS
@@ -67,7 +76,7 @@ components:
         message:
           description: A human-readable message providing more details about the error.
           type: string
-          pattern: "^[\\s\\S]*$"
+          pattern: "^.**$"
           minLength: 0
           maxLength: 1000
           example: "Missing or invalid access token."
@@ -76,8 +85,9 @@ components:
           description: Additional details about the error (optional).
           type: object
           nullable: true
-          
-      
+
+      additionalProperties: false
+             
       required:
         - code
         - message
@@ -121,7 +131,6 @@ components:
       maxLength: 16
       example: "johndoe"
 
-
     UserPhotoUrl:
       description: A URL pointing to the user's profile photo.
       allOf:
@@ -141,6 +150,8 @@ components:
         
         photoUrl:
           $ref: '#/components/schemas/UserPhotoUrl'
+
+      additionalProperties: false
 
       required:
         - userId 
@@ -163,10 +174,26 @@ components:
           maxItems: 2
           items:
             $ref: '#/components/schemas/UserId'
+
+      additionalProperties: false
       
       required:
         - conversationId
         - participantIds
+
+    GroupName:
+      description: The name of the group.
+      type: string
+      pattern: "^.*{1,100}$"
+      minLength: 1
+      maxLength: 100
+      example: "Family Group"
+    
+    GroupPhotoUrl:
+      description: A URL pointing to the group's photo.
+      allOf:
+        - $ref: '#/components/schemas/PhotoUrl'
+      example: "http://example.com/photos/cats.jpg"
 
     Group:
       description: A group conversation, between multiple users.
@@ -177,15 +204,10 @@ components:
           $ref: '#/components/schemas/ConversationId'
         
         name:
-          description: The name of the group.
-          type: string
-          pattern: "^[\\s\\S]{1,100}$"
-          minLength: 1
-          maxLength: 100
-          example: "Family Group"
+          $ref: '#/components/schemas/GroupName'
         
         photoUrl:
-          $ref: '#/components/schemas/PhotoUrl'
+          $ref: '#/components/schemas/GroupPhotoUrl'
        
         memberIds:
           description: List of user IDs who are members of the group.
@@ -194,6 +216,8 @@ components:
           maxItems: 1000
           items:
             $ref: '#/components/schemas/UserId'
+
+      additionalProperties: false
       
       required:
         - conversationId
@@ -208,7 +232,16 @@ components:
         - $ref: '#/components/schemas/Group'
 
     
-    # CONTENT TYPES
+    # DATA TYPES
+    Photo:
+      type: string
+      description: Binary photo file uploaded via multipart/form-data.
+      format: binary
+      minLength: 1
+      maxLength: 50000000   # 50 MB, puoi cambiare
+      pattern: "^.*$"
+      example: ""  # gli esempi non sono realmente significativi per un binary
+
     PhotoUrl:
       description: A URL pointing to a photo image.
       type: string
@@ -221,10 +254,19 @@ components:
     Text:
       description: A block of text.
       type: string
-      pattern: "^[\\s\\S]{0,1000}$"
+      pattern: "^.*{0,1000}$"
       minLength: 0
       maxLength: 1000
       example: "Hello, this is a message."
+
+    Timestamp:
+      description: Timestamp when the message was created.
+      type: string
+      format: date-time
+      pattern: "^[0-9T:\\-+\\.Z]+$"
+      minLength: 20
+      maxLength: 20
+      example: "2024-01-01T12:00:00Z"
 
 
     # MESSAGE
@@ -233,6 +275,17 @@ components:
       allOf:
         - $ref: '#/components/schemas/PhotoUrl'
       example: "http://example.com/messages/photos/photo123.jpg"
+
+    MessageStatus:
+      description: The status of the message.
+      type: string
+      pattern: "^(sent|read)$"
+      minLength: 4
+      maxLength: 4
+      enum:
+        - sent
+        - read
+      example: "sent"
 
     Message:
       description: The type of a message.
@@ -249,13 +302,7 @@ components:
           $ref: '#/components/schemas/UserId'
         
         createdAt:
-          description: Timestamp when the message was created.
-          type: string
-          format: date-time
-          pattern: "^[0-9T:\\-+\\.Z]+$"
-          minLength: 20
-          maxLength: 20
-          example: "2024-01-01T12:00:00Z"
+          $ref: '#/components/schemas/Timestamp'
         
         content:
           description: The content of the message, could be text and/or photo URL.
@@ -270,16 +317,13 @@ components:
           maxProperties: 2
         
         status:
-          description: The status of the message.
-          type: string
-          pattern: "^(sent|read)$"
-          minLength: 4
-          maxLength: 4
-          enum:
-            - sent
-            - read
-          example: "sent"
-      
+          $ref: '#/components/schemas/MessageStatus'
+
+        replyTo:
+          $ref: '#/components/schemas/MessageId'
+
+      additionalProperties: false
+
       required:
         - messageId
         - conversationId
@@ -290,6 +334,15 @@ components:
               
 
     # REACTION
+
+    Emoji:
+      type: string
+      description: The emoji used for the reaction. Representation can be a short name, codepoint or emoji glyph.
+      pattern: "^.*{1,4}$"
+      minLength: 1
+      maxLength: 5
+      example: "1F44D"
+
     ReactionId:
       description: The unique identifier of a reaction.
       type: string
@@ -314,21 +367,12 @@ components:
           $ref: '#/components/schemas/UserId'
         
         emoji:
-          description: The emoji used for the reaction.
-          type: string
-          pattern: "^[\\s\\S]{1,4}$"
-          minLength: 1
-          maxLength: 5
-          example: "1F44D" #👍
+          $ref: '#/components/schemas/Emoji'
         
         reactedAt:
-          description: Timestamp when the reaction was made.
-          type: string
-          format: date-time
-          pattern: "^[0-9T:\\-+\\.Z]+$"
-          minLength: 20
-          maxLength: 20
-          example: "2024-01-01T12:02:00Z"
+          $ref: '#/components/schemas/Timestamp'
+      
+      additionalProperties: false
 
       required:
         - reactionId
@@ -495,7 +539,7 @@ paths:
     post:
       tags: ["login"]
       summary: logs in the user
-      description: |-
+      description: |
         If the user does not exist, it will be created,
         and an identifier is returned.
         If the user exists, the user identifier is returned.
@@ -509,7 +553,9 @@ paths:
               type: object
               properties:
                 username:
-                  $ref: "#/components/schemas/Username"
+                  $ref: '#/components/schemas/Username'
+
+              additionalProperties: false
       responses:
         '200':
           description: Login successful.
@@ -519,7 +565,8 @@ paths:
                 type: object
                 properties:
                   userId:
-                    $ref: "#/components/schemas/UserId"
+                    $ref: '#/components/schemas/UserId'
+                additionalProperties: false
         '201':
           description: User created and login successful.
           content:
@@ -528,7 +575,8 @@ paths:
                 type: object
                 properties:
                   userId:
-                    $ref: "#/components/schemas/UserId"
+                    $ref: '#/components/schemas/UserId'
+                additionalProperties: false
         '400':
           $ref: '#/components/responses/BadRequest'
         '409':
@@ -539,7 +587,7 @@ paths:
           $ref: '#/components/responses/InternalError'
 
 
-  # SET USER PROFILE
+  # MANAGE USER PROFILE
   /me/username:
     patch:
       tags: ["user"]
@@ -551,14 +599,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/Username"
+              $ref: '#/components/schemas/Username'
       responses:
         '200':
           description: Username set successfully.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: '#/components/schemas/User'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -570,7 +618,7 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /me/photo:
+  /me/profile-photo:
     patch:
       tags: ["user"]
       summary: Sets my profile photo URL
@@ -581,14 +629,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/PhotoUrl"
+              $ref: '#/components/schemas/UserPhotoUrl'
       responses:
         '200':
           description: Profile photo URL set successfully.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/User"
+                $ref: '#/components/schemas/User'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -634,10 +682,9 @@ paths:
 
 
   # UPLOAD PHOTO
-  /media/photos:
+  /me/media/photos:
     post:
-      tags:
-        - media
+      tags: ["media"]
       summary: Upload a photo file.
       description: Uploads a single photo using multipart/form-data and returns its accessible URL.
 
@@ -653,13 +700,8 @@ paths:
               description: Container for the uploaded photo file.
               properties:
                 file:
-                  description: The binary photo file to upload.
-                  type: string
-                  format: binary
-                  pattern: "^[\\s\\S]*$"
-                  minLength: 1
-                  maxLength: 10485760 # 10 MB
-                  example: "(binary image data)"
+                  $ref: '#/components/schemas/Photo'
+              additionalProperties: false
               required:
                 - file
 
@@ -673,101 +715,125 @@ paths:
                 description: The response containing the public URL of the uploaded photo.
                 properties:
                   photoUrl:
-                    description: The URL of the uploaded photo.
                     type: string
+                    description: The URL of the uploaded photo.
                     format: uri
                     minLength: 1
                     maxLength: 1000
                     pattern: "^https?://.+$"
                     example: "https://example.com/photos/abc123.jpg"
+                additionalProperties: false
                 required:
                   - photoUrl
 
         '400':
-          description: Bad request — the upload request is invalid.
+          $ref: '#/components/responses/BadRequest'
         '401':
-          description: Unauthorized — authentication required.
+          $ref: '#/components/responses/Unauthorized'
         '413':
-          description: Payload too large — the file exceeds allowed size.
+          $ref: '#/components/responses/PayloadTooLarge'
         '415':
-          description: Unsupported media type — only images are allowed.
+          $ref: '#/components/responses/UnsupportedMediaType'
         '500':
-          description: Server error during the upload process.
+          $ref: '#/components/responses/InternalError'
 
 
-
-
-
-#TOCHECK
-
-
-  /conversations/{conversationId}/messages:
+  # MANAGE MESSAGES
+  /messages:
     post:
-      summary: Send a message
-      description: Sends a message in the specified conversation.
+      tags: ["messages"]
+      summary: Send a new message in a conversation
+      description: |
+        Send a new message (text and/or photo) to the specified conversation.
+        The authenticated user (Authorization: Bearer <userId>) is used as senderId.
+        The server assigns messageId, createdAt, and the initial status ("sent").
       operationId: sendMessage
-      parameters:
-        - name: conversationId
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/ConversationId'
+
       requestBody:
+        description: |
+          Payload to create a new message in the conversation. `conversationId` and `content` are required.
+          The `content` object must contain at least one of the allowed fields (`text` or `photoUrl`).
+          `replyTo` can be provided to mark this message as a reply to an existing message.
         required: true
         content:
-          multipart/form-data:
+          application/json:
             schema:
               type: object
+              description: Request body to create a message.
+              additionalProperties: false
               properties:
-                
-                text:
-                  description: Text content of the message (for text and text_with_photo types).
-                  $ref: '#/components/schemas/Text'
-                  example: "Hello, this is a message with a photo." 
-                
-                photo:
-                  description: Image file. Server will upload it and set content.photoUrl in the returned Message.
-                  type: string
-                  format: binary
-                  pattern: "^[\\s\\S]*$"
-                  minLength: 1
-                  maxLength: 10485760 # 10 MB
-                  example: "(binary image data)"
-                
-                
-                clientMessageId: # Sarà unico per ogni messaggio inviato dal client serve per evitare che un messaggio venga inviato più volte in caso di retry
-                  description: Client-generated id for idempotency (recommend UUID v4)
-                  type: string
-                  pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-                  minLength: 36
-                  maxLength: 36
-                  example: "523e4567-e89b-12d3-a456-426614174004"
+                conversationId:
+                  description: Id of the conversation where the message is being sent.
+                  $ref: '#/components/schemas/ConversationId'
+                content:
+                  description: The content of the message (text and/or photoUrl). At least one property required.
+                  type: object
+                  minProperties: 1
+                  maxProperties: 2
+                  properties:
+                    text:
+                      description: The textual body of the message.
+                      $ref: '#/components/schemas/Text'
+                    photoUrl:
+                      description: URL referencing a previously uploaded photo to attach to the message.
+                      $ref: '#/components/schemas/MessagePhotoUrl'
+                  additionalProperties: false
+                replyTo:
+                  description: Optional messageId of the message being replied to.
+                  $ref: '#/components/schemas/MessageId'
               required:
-                - type
+                - conversationId
+                - content
+            examples:
+              textOnly:
+                summary: Text-only message example
+                value:
+                  conversationId: "223e4567-e89b-12d3-a456-426614174001"
+                  content:
+                    text: "Ciao, ci vediamo alle 18?"
+              photoOnly:
+                summary: Photo-only message example
+                value:
+                  conversationId: "223e4567-e89b-12d3-a456-426614174001"
+                  content:
+                    photoUrl: "https://example.com/messages/photos/523e4567-e89b-12d3-a456-426614174010.jpg"
+              replyMessage:
+                summary: Reply message example
+                value:
+                  conversationId: "223e4567-e89b-12d3-a456-426614174001"
+                  content:
+                    text: "Sì, va bene!"
+                  replyTo: "323e4567-e89b-12d3-a456-426614174002"
+
       responses:
-        '200':
-          description: Returned when clientMessageId already exists for (conversationId,senderId); no new message created.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Message'
         '201':
-          description: Message sent successfully.
+          description: Message successfully created.
           headers:
             Location:
-              description: URL of the newly created message resource.
+              description: URL of the created message resource.
               schema:
-                description: URL of the newly created message resource.
                 type: string
-                format: uri
-                pattern: "^(https?|ftp)://[^\\s/$.?#].[^\\s]*$"
-                minLength: 0
+                description: The absolute or relative path to access the newly created message.
+                minLength: 1
                 maxLength: 1000
-                example: "http://localhost:3000/conversations/223e4567-e89b-12d3-a456-426614174001/messages/323e4567-e89b-12d3-a456-426614174002"
+                pattern: "^/conversations/.+/messages/.+$"
+              example: "/conversations/223e4567-e89b-12d3-a456-426614174001/messages/323e4567-e89b-12d3-a456-426614174002"
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Message'
+              examples:
+                created:
+                  summary: Newly created message
+                  value:
+                    messageId: "323e4567-e89b-12d3-a456-426614174002"
+                    conversationId: "223e4567-e89b-12d3-a456-426614174001"
+                    senderId: "123e4567-e89b-12d3-a456-426614174000"
+                    createdAt: "2024-01-01T12:00:00Z"
+                    content:
+                      text: "Ciao, ci vediamo alle 18?"
+                    status: "sent"
+
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -785,178 +851,135 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /conversations/{conversationId}/messages/{messageId}:
+  /messages/{messageId}:
     delete:
-      summary: Delete a message
+      tags: ["messages"]
+      summary: Delete a sent message
       description: |
-        Delete a message previously sent by the authenticated user in the specified conversation.
-        Only the original sender of the message may delete it. The operation is idempotent:
-        calling DELETE multiple times for the same message will still return 204 No Content.
-        After deletion the server should mark the message as deleted (e.g. `deleted: true`)
-        so clients can render a "message deleted" placeholder if desired.
+        Deletes a message previously sent. Only the original sender of the message is allowed to delete it.
+        The authenticated user is determined from the Authorization: Bearer <userId> header.
+        On success the server returns 204 No Content. The server may implement deletion as a hard delete
+        (remove the message permanently) or a soft delete (mark the message as deleted); document the chosen behaviour.
       operationId: deleteMessage
+
       parameters:
-        - name: conversationId
-          in: path
-          required: true
-          description: Conversation identifier where the message was posted.
-          schema:
-            $ref: '#/components/schemas/ConversationId'
         - name: messageId
           in: path
-          required: true
           description: Identifier of the message to delete.
+          required: true
           schema:
             $ref: '#/components/schemas/MessageId'
+          example: "323e4567-e89b-12d3-a456-426614174002"
+
       responses:
         '204':
-          description: Message deleted successfully (or already deleted). No content returned.
+          description: Message deleted successfully. No content is returned.
+
         '400':
           $ref: '#/components/responses/BadRequest'
+
         '401':
           $ref: '#/components/responses/Unauthorized'
+
         '403':
           $ref: '#/components/responses/Forbidden'
+
         '404':
           $ref: '#/components/responses/NotFound'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
+
         '500':
           $ref: '#/components/responses/InternalError'
 
   /messages/{messageId}/forward:
     post:
-      summary: Forward a message to one or more destinations
+      tags: ["messages"]
+      summary: Forward a message to one or more conversations
       description: |
-        Forward the specified message to one or more destinations. A destination can be an
-        existing conversation (conversationId) or a single user (userId). When forwarding to
-        a user, the server will create or reuse a direct conversation between the authenticated
-        user and that user. Idempotenza per-destinazione se il client fornisce clientMessageId.
+        Forwards an existing message (identified by {messageId}) to one or more target conversations.
+        The authenticated user (Authorization: Bearer &lt;userId&gt;) is used as sender of the new forwarded messages.
+        The server will create a new Message resource in each target conversation and return the created messages.
       operationId: forwardMessage
+
       parameters:
         - name: messageId
           in: path
           required: true
-          description: Identifier of the message to forward.
+          description: The identifier of the existing message to forward.
           schema:
             $ref: '#/components/schemas/MessageId'
+
       requestBody:
-        description: Forward request specifying destinations and optional comment.
         required: true
+        description: Payload with the list of target conversations where the message will be forwarded.
         content:
           application/json:
             schema:
               type: object
+              description: Targets for the forward operation.
               properties:
-                destinations:
-                  description: |
-                    Array di destinazioni. Ogni elemento deve contenere **exactly one** di
-                    conversationId o userId. clientMessageId è opzionale e serve per idempotenza.
+                targetConversationIds:
+                  description: Array of conversation IDs where the message will be forwarded.
                   type: array
                   minItems: 1
-                  maxItems: 1000
+                  maxItems: 100
                   items:
-                    type: object
-                    properties:
-                      conversationId:
-                        $ref: '#/components/schemas/ConversationId'
-                      userId:
-                        $ref: '#/components/schemas/UserId'
-                      clientMessageId:
-                        description: Client-generated id for idempotency (recommend UUID v4)
-                        type: string
-                        format: uuid
-                        pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-                        minLength: 36
-                        maxLength: 36
-                        example: "623e4567-e89b-12d3-a456-426614174005"
-                    additionalProperties: false
-                comment:
-                  description: Optional comment to include with the forwarded message.
-                  type: string
-                  pattern: "^[\\s\\S]*$"
-                  minLength: 0
-                  maxLength: 1000
-                  example: "Check this out!"
-                includeMedia:
-                  description: Whether to include attached media (photo) when present.
-                  type: boolean
-                  default: true
+                    $ref: '#/components/schemas/ConversationId'
+              additionalProperties: false
               required:
-                - destinations
+                - targetConversationIds
+            examples:
+              forward_to_two_conversations:
+                summary: Forward to two conversations
+                value:
+                  targetConversationIds:
+                    - "223e4567-e89b-12d3-a456-426614174001"
+                    - "223e4567-e89b-12d3-a456-426614174005"
+
       responses:
         '201':
-          description: One or more messages created for the specified destinations.
+          description: Forward completed — messages were created in the specified conversations.
           content:
             application/json:
               schema:
                 type: object
+                description: Result of the forward operation containing created messages.
                 properties:
-                  created:
-                    description: List of created messages and their actual destination.
-                    type: array
-                    minItems: 1
-                    maxItems: 1000
-                    items:
-                      type: object
-                      properties:
-                        destination:
-                          type: object
-                          properties:
-                            conversationId:
-                              $ref: '#/components/schemas/ConversationId'
-                            userId:
-                              $ref: '#/components/schemas/UserId'
-                        message:
-                          $ref: '#/components/schemas/Message'
-                        clientMessageId:
-                          description: The clientMessageId provided by the client for idempotency, if any.
-                          type: string
-                          format: uuid
-                          pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-                          minLength: 36
-                          maxLength: 36
-                          example: "623e4567-e89b-12d3-a456-426614174005"
-                      required:
-                        - destination
-                        - message
-        '200':
-          description: No new messages created (all forwards were idempotent / skipped).
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  created:
-                    description: Empty if none created.
+                  createdCount:
+                    type: integer
+                    description: Number of messages successfully created.
+                    minimum: 0
+                  createdMessages:
+                    description: Array of newly created messages (one per target conversation).
                     type: array
                     minItems: 0
-                    maxItems: 1000
+                    maxItems: 100
                     items:
                       $ref: '#/components/schemas/Message'
-                  skipped:
-                    type: array
-                    minItems: 0
-                    maxItems: 1000
-                    items:
-                      description: Destinazioni saltate con motivo (es. duplicate clientMessageId).
-                      type: object
-                      properties:
-                        destination:
-                          type: object
-                          properties:
-                            conversationId:
-                              $ref: '#/components/schemas/ConversationId'
-                            userId:
-                              $ref: '#/components/schemas/UserId'
-                        reason:
-                          description: Reason why the forward was skipped for this destination.
-                          type: string
-                          pattern: "^[\\s\\S]*$"
-                          minLength: 1
-                          maxLength: 1000
-                          example: "Duplicate clientMessageId"
-                      
+                additionalProperties: false
+                required:
+                  - createdCount
+                  - createdMessages
+              examples:
+                forward_result_example:
+                  summary: Example forward result
+                  value:
+                    createdCount: 2
+                    createdMessages:
+                      - messageId: "523e4567-e89b-12d3-a456-426614174010"
+                        conversationId: "223e4567-e89b-12d3-a456-426614174001"
+                        senderId: "123e4567-e89b-12d3-a456-426614174000"
+                        createdAt: "2024-01-01T12:10:00Z"
+                        content:
+                          text: "Messaggio inoltrato: Ciao, ci vediamo alle 18?"
+                        status: "sent"
+                      - messageId: "523e4567-e89b-12d3-a456-426614174011"
+                        conversationId: "223e4567-e89b-12d3-a456-426614174005"
+                        senderId: "123e4567-e89b-12d3-a456-426614174000"
+                        createdAt: "2024-01-01T12:10:01Z"
+                        content:
+                          text: "Messaggio inoltrato: Ciao, ci vediamo alle 18?"
+                        status: "sent"
+
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -969,50 +992,52 @@ paths:
           $ref: '#/components/responses/Conflict'
         '413':
           $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /conversations/{conversationId}/messages/{messageId}/comments:
+
+  # MANAGE REACTIONS
+  /reactions:
     post:
-      summary: Add a reaction (comment) to a message
+      tags: ["messages"]
+      summary: Add (comment) a reaction to a message
       description: |
-        Add a reaction (emoticon) to the specified message. If the authenticated user
-        already reacted to the message with the same emoji, the operation is idempotent
-        and the existing reaction is returned with 200 OK. Otherwise a new Reaction is
-        created and returned with 201 Created.
+        Adds a reaction (emoji) to the specified message. The authenticated user (Authorization: Bearer <userId>)
+        will be recorded as the reactor. The server assigns reactionId and reactedAt. If the same user previously
+        reacted with the same emoji, server behaviour may be to return 409 Conflict or to return the existing reaction;
+        this behaviour should be documented in the implementation notes.
       operationId: commentMessage
-      parameters:
-        - name: conversationId
-          description: Conversation identifier containing the message.
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/ConversationId'
-        - name: messageId
-          description: Identifier of the message to react to.
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/MessageId'
+
       requestBody:
-        description: Reaction to add to the message.
+        description: Request containing the messageId and the emoji to add as reaction.
         required: true
         content:
           application/json:
             schema:
               type: object
+              description: The reaction payload. Both `messageId` and `emoji` are required.
               properties:
+                messageId:
+                  $ref: '#/components/schemas/MessageId'
+                  description: Identifier of the message to which the reaction will be attached.
                 emoji:
-                  description: The emoji to use for the reaction (single emoji, 1–4 UTF-8 codepoints).
-                  type: string
-                  pattern: "^[\\s\\S]{1,4}$"
-                  minLength: 1
-                  maxLength: 4
-                  example: "👍"
+                  $ref: '#/components/schemas/Emoji'
+                  description: The emoji used for the reaction.
               required:
+                - messageId
                 - emoji
+              additionalProperties: false
+            examples:
+              thumbs_up:
+                summary: Thumbs up example
+                value:
+                  messageId: "323e4567-e89b-12d3-a456-426614174002"
+                  emoji: "1F44D"
+
       responses:
         '201':
           description: Reaction created successfully.
@@ -1020,12 +1045,16 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Reaction'
-        '200':
-          description: Reaction already existed for this user+emoji; returning existing reaction.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Reaction'
+              examples:
+                created_reaction:
+                  summary: Newly created reaction
+                  value:
+                    reactionId: "423e4567-e89b-12d3-a456-426614174003"
+                    messageId: "323e4567-e89b-12d3-a456-426614174002"
+                    userId: "123e4567-e89b-12d3-a456-426614174000"
+                    emoji: "1F44D"
+                    reactedAt: "2024-01-01T12:02:00Z"
+
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -1041,50 +1070,28 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /conversations/{conversationId}/messages/{messageId}/comments/{emoji}:
+  /reactions/{reactionId}:
     delete:
-      summary: Remove a reaction (comment) from a message
+      tags: ["messages"]
+      summary: Remove (uncomment) a reaction
       description: |
-        Remove the authenticated user's reaction from the specified message.
-        The operation is idempotent: if the reaction exists, it is removed and returned
-        with 200 OK; if no such reaction exists, 204 No Content is returned.
+        Removes an existing reaction identified by {reactionId}. Only the user who created the reaction
+        (the reactor) is allowed to delete it. The authenticated user is determined from the Authorization header.
+        On success the server returns 204 No Content.
       operationId: uncommentMessage
+
       parameters:
-        - name: conversationId
-          description: Conversation identifier containing the message.
+        - name: reactionId
           in: path
+          description: Identifier of the reaction to remove.
           required: true
           schema:
-            $ref: '#/components/schemas/ConversationId'
-
-        - name: messageId
-          description: Identifier of the message whose reaction will be removed.
-          in: path
-          required: true
-          schema:
-            $ref: '#/components/schemas/MessageId'
-
-        - name: emoji
-          in: path
-          required: true
-          description: Emoji of the reaction to remove.
-          schema:
-            type: string
-            pattern: "^[\\s\\S]{1,4}$"
-            minLength: 1
-            maxLength: 4
-            example: "👍"
+            $ref: '#/components/schemas/ReactionId'
+          example: "423e4567-e89b-12d3-a456-426614174003"
 
       responses:
-        '200':
-          description: Reaction found and removed successfully.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Reaction'
-
         '204':
-          description: No reaction existed for this user+emoji; nothing to remove.
+          description: Reaction removed successfully. No content is returned.
 
         '400':
           $ref: '#/components/responses/BadRequest'
@@ -1094,92 +1101,389 @@ paths:
           $ref: '#/components/responses/Forbidden'
         '404':
           $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+
+  # MANAGE GROUPS
+  /groups/{groupId}/name:
+    put:
+      tags: ["groups"]
+      summary: Set the name of a group
+      description: |
+        Updates the name of the specified group.
+        The authenticated user must be a member of the group and must have permission to modify its settings.
+
+      operationId: setGroupName
+
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          description: The ID of the group whose name will be updated.
+          schema:
+            $ref: '#/components/schemas/ConversationId'
+
+      requestBody:
+        required: true
+        description: Payload containing the new group name.
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Object containing the new group name to assign.
+              properties:
+                name:
+                  $ref: '#/components/schemas/GroupName'
+              required:
+                - name
+              additionalProperties: false
+
+      responses:
+        '200':
+          description: Group name updated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: The updated group resource.
+                properties:
+                  groupId:
+                    $ref: '#/components/schemas/ConversationId'
+                  name:
+                    type: string
+                    description: The updated name of the group.
+                    minLength: 1
+                    maxLength: 100
+                    pattern: "^[A-Za-z0-9 _\\-]+$"
+                    example: "My Awesome Group"
+                required:
+                  - groupId
+                  - name
+                additionalProperties: false
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
         '429':
           $ref: '#/components/responses/TooManyRequests'
         '500':
           $ref: '#/components/responses/InternalError'
 
-  /me/conversations:
-    get:
-      summary: Get my conversations (list)
-      description: >
-        Return the list of conversations (direct or group) of the authenticated user,
-        sorted in reverse chronological order (most recent activity first).
-        Each element contains the conversation id, name, photoUrl, lastMessage snippet,
-        lastActivity timestamp and unreadCount. Pagination supported via `limit` and `before`.
-      operationId: getMyConversations
+  /groups/{groupId}/photos:
+    post:
+      tags: ["groups"]
+      summary: Upload a photo for a group
+      description: |
+        Uploads a photo file for the specified group and returns a public URL (photoUrl).
+        The authenticated user must be a member of the group and have permission to upload group media.
+        The client should then call PUT /groups/{groupId}/photo with the returned photoUrl to set the group's photo.
+      operationId: uploadGroupPhoto
+
       parameters:
-        - name: limit
-          in: query
-          required: false
-          description: Maximum number of conversations to return (pagination).
+        - name: groupId
+          in: path
+          required: true
+          description: Identifier of the group that will own the uploaded photo.
           schema:
-            type: integer
-            minimum: 1
-            maximum: 100
-            default: 25
-        - name: before
-          in: query
-          required: false
-          description: Return conversations with lastActivity strictly before this timestamp (ISO 8601 UTC). Use for cursor-style pagination.
-          schema:
-            type: string
-            format: date-time
-            pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
-            minLength: 20
-            maxLength: 20
-            example: "2025-11-16T12:00:00Z"
-        - name: q
-          in: query
-          required: false
-          description: Optional search query to filter conversations by participant username or conversation name (substring match).
-          schema:
-            type: string
-            pattern: "^[\\s\\S]{0,100}$"
-            minLength: 0
-            maxLength: 100
-            example: "maria"
-        - name: unreadOnly
-          in: query
-          required: false
-          description: If true, return only conversations with unread messages.
-          schema:
-            type: boolean
-            default: false
+            $ref: '#/components/schemas/ConversationId'
+
+      requestBody:
+        description: The photo file to upload. Use multipart/form-data with a single `file` field.
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              description: Container for the uploaded photo file.
+              properties:
+                file:
+                  $ref: '#/components/schemas/Photo'
+              required:
+                - file
+              additionalProperties: false
+
       responses:
-        '200':
-          description: A page of conversations.
+        '201':
+          description: Photo uploaded successfully — returns the public URL of the uploaded photo.
           content:
             application/json:
               schema:
                 type: object
+                description: Response containing the URL of the uploaded photo.
                 properties:
-                  conversations:
-                    description: Array of conversation summaries ordered by lastActivity desc.
-                    type: array
-                    minItems: 0
-                    maxItems: 100
-                    items:
-                      $ref: '#/components/schemas/ConversationSummary'
-                  totalCount:
-                    description: Total number of conversations (may be approximate for performance).
-                    type: integer
-                    minimum: 0
-                    example: 42
-                  nextBefore:
-                    description: | 
-                      Cursor value (timestamp) to request the next page: use as `before` in the next call, or omitted/null if no more pages.
-                    type: string
-                    format: date-time
-                    pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
-                    minLength: 20
-                    maxLength: 20
-                    nullable: true
-                    example: "2025-11-15T08:30:00Z"
+                  photoUrl:
+                    $ref: '#/components/schemas/GroupPhotoUrl'
+                additionalProperties: false
                 required:
-                  - conversations
+                  - photoUrl
+              examples:
+                uploaded:
+                  summary: Uploaded photo result
+                  value:
+                    photoUrl: "https://example.com/groups/photos/523e4567-e89b-12d3-a456-426614174010.jpg"
+
         '400':
           $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '413':
+          $ref: '#/components/responses/PayloadTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /groups/{groupId}/group-photo:
+    put:
+      tags: ["groups"]
+      summary: Set the group's photo using an existing URL
+      description: |
+        Sets the group's profile photo to the provided `photoUrl`. The URL must be reachable and point to a supported image.
+        The authenticated user must be a member of the group and have permission to modify group settings.
+        Typical flow: 1) POST /groups/{groupId}/photos (upload) -> receive photoUrl; 2) PUT /groups/{groupId}/photo with that photoUrl.
+      operationId: setGroupPhoto
+
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          description: Identifier of the group whose photo will be set.
+          schema:
+            $ref: '#/components/schemas/ConversationId'
+
+      requestBody:
+        description: JSON payload containing the `photoUrl` previously obtained from the upload endpoint.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Payload to set the group's photo using an existing URL.
+              properties:
+                photoUrl:
+                  $ref: '#/components/schemas/GroupPhotoUrl'
+              additionalProperties: false 
+              required:
+                - photoUrl
+            examples:
+              set_by_url:
+                summary: Set group photo using an uploaded URL
+                value:
+                  photoUrl: "https://example.com/groups/photos/523e4567-e89b-12d3-a456-426614174010.jpg"
+
+      responses:
+        '200':
+          description: Group photo updated successfully; returns the updated group resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+              examples:
+                updated_group:
+                  summary: Updated group with new photoUrl
+                  value:
+                    conversationId: "223e4567-e89b-12d3-a456-426614174001"
+                    name: "Family Group"
+                    photoUrl: "https://example.com/groups/photos/523e4567-e89b-12d3-a456-426614174010.jpg"
+                    memberIds:
+                      - "123e4567-e89b-12d3-a456-426614174000"
+                      - "423e4567-e89b-12d3-a456-426614174009"
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /groups/{groupId}/members:
+    post:
+      tags: ["groups"]
+      summary: Add one or more users to a group
+      description: |
+        Adds the specified users to the group identified by {groupId}.
+        The authenticated user (Authorization: Bearer <userId>) must be a member of the group and
+        must have permission to add new members. The server will add each user in `memberIds`
+        to the group; if some users are already members, server may ignore them or return 409 for conflicts.
+      operationId: addToGroup
+
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          description: Identifier of the group to which users will be added.
+          schema:
+            $ref: '#/components/schemas/ConversationId'
+
+      requestBody:
+        description: JSON payload containing the list of user IDs to add to the group.
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Payload with member IDs to add to the group.
+              properties:
+                memberIds:
+                  description: Array of user IDs to add to the group.
+                  type: array
+                  minItems: 1
+                  maxItems: 1000
+                  items:
+                    $ref: '#/components/schemas/UserId'
+              additionalProperties: false
+              required:
+                - memberIds
+            examples:
+              add_two_members:
+                summary: Add two users to the group
+                value:
+                  memberIds:
+                    - "123e4567-e89b-12d3-a456-426614174000"
+                    - "423e4567-e89b-12d3-a456-426614174009"
+
+      responses:
+        '200':
+          description: Users added successfully — returns the updated group resource.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Group'
+              examples:
+                updated_group:
+                  summary: Group after adding members
+                  value:
+                    conversationId: "223e4567-e89b-12d3-a456-426614174001"
+                    name: "Family Group"
+                    photoUrl: "https://example.com/groups/photos/523e4567-e89b-12d3-a456-426614174010.jpg"
+                    memberIds:
+                      - "123e4567-e89b-12d3-a456-426614174000"
+                      - "423e4567-e89b-12d3-a456-426614174009"
+                      - "323e4567-e89b-12d3-a456-426614174002"
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+  /groups/{groupId}/leave:
+    post:
+      tags: ["groups"]
+      summary: Leave a group
+      description: |
+        The authenticated user (Authorization: Bearer <userId>) leaves the specified group.
+        After this call the user will no longer receive messages from the group and will not be listed
+        among its members. If the user is the last admin or if other business rules prevent leaving,
+        the server should return an appropriate error (403 or 409).
+      operationId: leaveGroup
+
+      parameters:
+        - name: groupId
+          in: path
+          required: true
+          description: Identifier of the group the authenticated user will leave.
+          schema:
+            $ref: '#/components/schemas/ConversationId'
+
+      requestBody:
+        description: Optional JSON payload with leave options (currently unused). Clients may omit this body.
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              description: Reserved for future leave options (e.g., transfer-admin:true).
+              properties:
+                transferAdminTo:
+                  description: Optional userId to transfer admin rights before leaving.
+                  $ref: '#/components/schemas/UserId'
+              additionalProperties: false
+            examples:
+              leave_simple:
+                summary: Simple leave (no body)
+                value: {}
+
+      responses:
+        '204':
+          description: Left the group successfully. No content is returned.
+
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '500':
+          $ref: '#/components/responses/InternalError'
+
+
+  # SHOW CONVERSATIONS
+  /me/conversations:
+    get:
+      tags: ["conversations"]
+      summary: Get my conversations
+      description: |
+        Returns all conversations where the authenticated user is a participant.
+        The authenticated user is extracted from the Authorization: Bearer <userId> header.
+        The server returns the list of conversations sorted by most recent activity.
+
+      operationId: getMyConversations
+
+      responses:
+        '200':
+          description: List of conversations the user participates in.
+          content:
+            application/json:
+              schema:
+                type: array
+                description: Array of conversations associated with the authenticated user.
+                items:
+                  $ref: '#/components/schemas/Conversation'
+                minItems: 0
+                maxItems: 10000
+              examples:
+                sample:
+                  summary: Example of conversation list
+                  value:
+                    - conversationId: "223e4567-e89b-12d3-a456-426614174001"
+                      name: "Gruppo Amici"
+                      type: "group"
+                      createdAt: "2024-01-01T10:00:00Z"
+                    - conversationId: "123e4567-e89b-12d3-a456-426614174099"
+                      name: "Chat privata"
+                      type: "private"
+                      createdAt: "2024-01-02T08:00:00Z"
+
         '401':
           $ref: '#/components/responses/Unauthorized'
         '403':
@@ -1189,16 +1493,19 @@ paths:
         '500':
           $ref: '#/components/responses/InternalError'
 
+  # SHOW ONE CONVERSATION
   /conversations/{conversationId}:
     get:
-      summary: Get conversation messages
+      tags: ["conversations"]
+      summary: Get a conversation and its messages
       description: |
-        Return the conversation metadata and the list of messages for the specified conversation,
-        ordered in reverse chronological order (most recent first). Supports cursor-style
-        pagination using `before` (ISO 8601 UTC timestamp). Clients should pass `limit` to
-        control page size. By default reactions and delivery/read statuses are included;
-        can be disabled with query flags to reduce payload size.
+        Returns the specified conversation (chat or group) and a page of messages exchanged in it.
+        Messages are returned in reverse chronological order (newest first) by default.
+        The authenticated user (Authorization: Bearer <userId>) must be a participant of the conversation.
+        Use `limit` and `before`/`after` to page through messages.
+
       operationId: getConversation
+
       parameters:
         - name: conversationId
           in: path
@@ -1206,320 +1513,97 @@ paths:
           description: Identifier of the conversation to retrieve.
           schema:
             $ref: '#/components/schemas/ConversationId'
+          example: "223e4567-e89b-12d3-a456-426614174001"
 
         - name: limit
           in: query
           required: false
-          description: Maximum number of messages to return in this page.
+          description: Maximum number of messages to return in the page (1..100).
           schema:
             type: integer
             minimum: 1
-            maximum: 200
-            default: 50
+            maximum: 100
+            default: 30
+          example: 30
 
         - name: before
           in: query
           required: false
-          description: Return messages with createdAt strictly before this timestamp (ISO 8601 UTC, use as cursor). If omitted, the page starts from now (most recent).
+          description: Return messages created strictly before this RFC3339 timestamp. Use for paginating older messages.
           schema:
-            type: string
-            format: date-time
-            pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
-            minLength: 20
-            maxLength: 20
-            example: "2025-11-16T12:00:00Z"
+            $ref: '#/components/schemas/Timestamp'
+          example: "2024-01-02T15:00:00Z"
 
-        - name: includeReactions
+        - name: after
           in: query
           required: false
-          description: If false, reactions will be omitted from the response to reduce payload.
+          description: Return messages created strictly after this RFC3339 timestamp. Use for fetching newer messages.
           schema:
-            type: boolean
-            default: true
-
-        - name: includeStatuses
-          in: query
-          required: false
-          description: If false, delivery/read status information will be omitted from the response.
-          schema:
-            type: boolean
-            default: true
+            $ref: '#/components/schemas/Timestamp'
+          example: "2024-01-01T12:00:00Z"
 
       responses:
         '200':
-          description: Conversation metadata and a page of messages.
+          description: Conversation retrieved successfully with a page of messages.
           content:
             application/json:
               schema:
                 type: object
+                description: Conversation details and a page of messages (newest first by default).
                 properties:
                   conversation:
-                    $ref: '#/components/schemas/ConversationSummary'
+                    $ref: '#/components/schemas/Conversation'
                   messages:
-                    description: Array of message entries in reverse chronological order (most recent first).
                     type: array
-                    minItems: 0
-                    maxItems: 200
+                    description: Page of messages (reverse chronological by default).
                     items:
-                      type: object
-                      properties:
-                        message:
-                          $ref: '#/components/schemas/Message'
-                        reactions:
-                          description: Reactions attached to the message (may be empty or omitted if includeReactions=false).
-                          type: array
-                          minItems: 0
-                          maxItems: 1000
-                          items:
-                            $ref: '#/components/schemas/Reaction'
-                        statuses:
-                          description: Delivery/read status entries for the message (may be empty or omitted if includeStatuses=false).
-                          type: array
-                          minItems: 0
-                          maxItems: 1000
-                          items:
-                            $ref: '#/components/schemas/MessageStatus'
-                      required:
-                        - message
-                  nextBefore:
-                    description: | 
-                      Cursor timestamp (ISO 8601 UTC) to fetch the next page: pass as `before` in the subsequent request. Null if no more messages.
+                      $ref: '#/components/schemas/Message'
+                    minItems: 0
+                    maxItems: 100
+                  hasMore:
+                    type: boolean
+                    description: True if there are older messages available beyond this page.
+                    example: false
+                  nextCursor:
                     type: string
-                    format: date-time
-                    pattern: "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$"
-                    minLength: 20
-                    maxLength: 20
-                    nullable: true
-                    example: "2025-11-15T08:30:00Z"
+                    description: Cursor value (timestamp) to fetch the next page (use as `before`).
+                    minLength: 0
+                    maxLength: 1000
+                    pattern: "^.*$"
+                    example: "2024-01-01T11:59:59Z"
+                additionalProperties: false
                 required:
                   - conversation
                   - messages
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-        '500':
-          $ref: '#/components/responses/InternalError'
+              examples:
+                convo_with_messages:
+                  summary: Conversation with two messages
+                  value:
+                    conversation:
+                      conversationId: "223e4567-e89b-12d3-a456-426614174001"
+                      name: "Family Group"
+                      photoUrl: "https://example.com/groups/photos/523e4567-e89b-12d3-a456-426614174010.jpg"
+                      memberIds:
+                        - "123e4567-e89b-12d3-a456-426614174000"
+                        - "423e4567-e89b-12d3-a456-426614174009"
+                    messages:
+                      - messageId: "623e4567-e89b-12d3-a456-426614174020"
+                        conversationId: "223e4567-e89b-12d3-a456-426614174001"
+                        senderId: "123e4567-e89b-12d3-a456-426614174000"
+                        createdAt: "2024-01-02T15:00:00Z"
+                        content:
+                          text: "Ci vediamo stasera?"
+                        status: "sent"
+                      - messageId: "523e4567-e89b-12d3-a456-426614174010"
+                        conversationId: "223e4567-e89b-12d3-a456-426614174001"
+                        senderId: "423e4567-e89b-12d3-a456-426614174009"
+                        createdAt: "2024-01-02T14:59:00Z"
+                        content:
+                          text: "Sì, a che ora?"
+                        status: "read"
+                    hasMore: true
+                    nextCursor: "2024-01-02T14:59:00Z"
 
-  /groups/{groupId}/name:
-    patch:
-      summary: Set group name
-      description: >
-        Set or update the display name of a group. Only users with the group role "admin"
-        may rename the group. Direct 1:1 conversations are not addressable via /groups.
-        Returns the updated ConversationSummary for the group.
-      operationId: setGroupName
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-          description: Identifier of the group conversation to rename (same format as ConversationId).
-          schema:
-            $ref: '#/components/schemas/ConversationId'
-      requestBody:
-        description: New group name.
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                name:
-                  description: New name for the group (1–100 characters).
-                  type: string
-                  pattern: "^[\\s\\S]{1,100}$"
-                  minLength: 1
-                  maxLength: 100
-                  example: "Weekend Friends"
-              required:
-                - name
-      responses:
-        '200':
-          description: Group renamed successfully; returns updated conversation summary.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ConversationSummary'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          description: Forbidden - authenticated but not allowed (e.g., not admin or not a member).
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /groups/{groupId}/photo:
-    patch:
-      summary: Set group photo
-      description: >
-        Set or update the group's photo. Only users with the group role "admin" may change the photo.
-        Accepts multipart/form-data with a binary field named "photo". Returns the updated ConversationSummary.
-      operationId: setGroupPhoto
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-          description: Identifier of the group conversation to update photo for.
-          schema:
-            $ref: '#/components/schemas/ConversationId'
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              properties:
-                photo:
-                  type: string
-                  format: binary
-                  description: Image file to upload (server validates type/size). Max allowed size enforced server-side.
-              required:
-                - photo
-      responses:
-        '200':
-          description: Group photo updated successfully; returns updated conversation summary.
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ConversationSummary'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          description: Forbidden - authenticated but not allowed (e.g., not admin or not a member).
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '413':
-          $ref: '#/components/responses/PayloadTooLarge'
-        '415':
-          $ref: '#/components/responses/UnsupportedMediaType'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-        '500':
-          $ref: '#/components/responses/InternalError'
-
-  /groups/{groupId}/members:
-    post:
-      summary: Add one or more users to a group
-      description: |
-        Add the specified users to the group. Only existing group members may add other users.
-        For each userId the server will try to add the user; already-member userIds are reported in "skipped".
-      operationId: addToGroup
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-          description: Identifier of the group to which members will be added.
-          schema:
-            $ref: '#/components/schemas/ConversationId'
-      requestBody:
-        description: List of user IDs to add to the group.
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                userIds:
-                  description: Array of user identifiers to add to the group.
-                  type: array
-                  minItems: 1
-                  maxItems: 1000
-                  items:
-                    $ref: '#/components/schemas/UserId'
-              required:
-                - userIds
-      responses:
-        '200':
-          description: Users processed. Returns the updated conversation summary and details about added/skipped users.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  conversation:
-                    $ref: '#/components/schemas/ConversationSummary'
-                  added:
-                    description: List of userIds that were successfully added.
-                    type: array
-                    minItems: 0
-                    maxItems: 1000
-                    items:
-                      $ref: '#/components/schemas/UserId'
-                  skipped:
-                    description: List of objects describing skipped userIds and reason.
-                    type: array
-                    minItems: 0
-                    maxItems: 1000
-                    items:
-                      type: object
-                      properties:
-                        userId:
-                          $ref: '#/components/schemas/UserId'
-                        reason:
-                          type: string
-                          pattern: "^[\\s\\S]{1,200}$"
-                          minLength: 1
-                          maxLength: 200
-                      required:
-                        - userId
-                        - reason
-                required:
-                  - conversation
-        '400':
-          $ref: '#/components/responses/BadRequest'
-        '401':
-          $ref: '#/components/responses/Unauthorized'
-        '403':
-          $ref: '#/components/responses/Forbidden'
-        '404':
-          $ref: '#/components/responses/NotFound'
-        '409':
-          $ref: '#/components/responses/Conflict'
-        '429':
-          $ref: '#/components/responses/TooManyRequests'
-        '500':
-          $ref: '#/components/responses/InternalError'
-          
-  /groups/{groupId}/members/me:
-    delete:
-      summary: Leave the group (current authenticated user)
-      description: >
-        The authenticated user leaves the specified group. If the user is not a member
-        the operation is idempotent and returns 204 No Content.
-      operationId: leaveGroup
-      parameters:
-        - name: groupId
-          in: path
-          required: true
-          description: Identifier of the group to leave.
-          schema:
-            $ref: '#/components/schemas/ConversationId'
-      responses:
-        '200':
-          description: Left the group and returns the updated conversation summary (if applicable).
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ConversationSummary'
-        '204':
-          description: The user was not a member (or already left); nothing to do.
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':

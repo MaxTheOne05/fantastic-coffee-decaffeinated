@@ -21,8 +21,10 @@ tags:
   - name: media
     description: Operations related to media uploads and management.
   - name: messages
-    description: Operations related to sending, deleting, forwarding messages and adding reactions.
-  - name: group
+    description: Operations related to sending, deleting, forwarding messages.
+  - name: reactions
+    description: Operations related to adding and removing reactions
+  - name: groups
     description: Operations related to setting group name, group photo, adding and removing participants.
   - name: conversations
     description: Operations related to showing conversations and messages.
@@ -30,7 +32,6 @@ tags:
 
 servers:
   - url: http://localhost:3000
-
 
 
 
@@ -52,11 +53,8 @@ components:
     WWW-Authenticate:
       description: 'Authentication method required (Bearer).'
       schema:
-        type: string
-        minLength: 1
-        maxLength: 1000
-        pattern: '^.*$'
-      example: 'Bearer realm="WASAText", error="invalid_token", error_description="Provide userId as bearer token"'
+        $ref: '#/components/schemas/UserId'
+      example: "123e4567-e89b-12d3-a456-426614174000"
 
   schemas:
 
@@ -76,7 +74,7 @@ components:
         message:
           description: A human-readable message providing more details about the error.
           type: string
-          pattern: "^.**$"
+          pattern: "^.*$"
           minLength: 0
           maxLength: 1000
           example: "Missing or invalid access token."
@@ -121,6 +119,12 @@ components:
         - $ref: '#/components/schemas/Id'
       example: "223e4567-e89b-12d3-a456-426614174001"
 
+    ReactionId:
+      description: "Identifier for a reaction."
+      allOf:
+        - $ref: '#/components/schemas/Id'
+      example: "223e4567-e89b-12d3-a456-426614174001"
+
 
     # USER
     Username:
@@ -130,12 +134,6 @@ components:
       minLength: 3
       maxLength: 16
       example: "johndoe"
-
-    UserPhotoUrl:
-      description: A URL pointing to the user's profile photo.
-      allOf:
-        - $ref: '#/components/schemas/PhotoUrl'
-      example: "http://example.com/photos/johndoe.jpg"
 
     User:
       description: A user in the WASAText system.
@@ -149,7 +147,7 @@ components:
           $ref: '#/components/schemas/Username'
         
         photoUrl:
-          $ref: '#/components/schemas/UserPhotoUrl'
+          $ref: '#/components/schemas/PhotoUrl'
 
       additionalProperties: false
 
@@ -159,8 +157,8 @@ components:
 
     
     # CONVERSATION
-    Chat:
-      description: A chat conversation, between two users.
+    PrivateChat:
+      description: A private chat is conversation, between two users.
       type: object
       properties:
         
@@ -184,16 +182,10 @@ components:
     GroupName:
       description: The name of the group.
       type: string
-      pattern: "^.*{1,100}$"
+      pattern: "^.*$"
       minLength: 1
       maxLength: 100
       example: "Family Group"
-    
-    GroupPhotoUrl:
-      description: A URL pointing to the group's photo.
-      allOf:
-        - $ref: '#/components/schemas/PhotoUrl'
-      example: "http://example.com/photos/cats.jpg"
 
     Group:
       description: A group conversation, between multiple users.
@@ -207,12 +199,12 @@ components:
           $ref: '#/components/schemas/GroupName'
         
         photoUrl:
-          $ref: '#/components/schemas/GroupPhotoUrl'
+          $ref: '#/components/schemas/PhotoUrl'
        
         memberIds:
           description: List of user IDs who are members of the group.
           type: array
-          minItems: 1
+          minItems: 0
           maxItems: 1000
           items:
             $ref: '#/components/schemas/UserId'
@@ -225,13 +217,13 @@ components:
         - memberIds
 
     Conversation:
-      description: A conversation, which can be either a chat or a group.
+      description: A conversation, which can be either a private chat or a group.
       type: object
       oneOf:
-        - $ref: '#/components/schemas/Chat'
+        - $ref: '#/components/schemas/PrivateChat'
         - $ref: '#/components/schemas/Group'
 
-    
+
     # DATA TYPES
     Photo:
       type: string
@@ -254,7 +246,7 @@ components:
     Text:
       description: A block of text.
       type: string
-      pattern: "^.*{0,1000}$"
+      pattern: "^.*$"
       minLength: 0
       maxLength: 1000
       example: "Hello, this is a message."
@@ -265,17 +257,11 @@ components:
       format: date-time
       pattern: "^[0-9T:\\-+\\.Z]+$"
       minLength: 20
-      maxLength: 20
+      maxLength: 25
       example: "2024-01-01T12:00:00Z"
 
 
     # MESSAGE
-    MessagePhotoUrl:
-      description: A URL pointing to a photo attached to a message.
-      allOf:
-        - $ref: '#/components/schemas/PhotoUrl'
-      example: "http://example.com/messages/photos/photo123.jpg"
-
     MessageStatus:
       description: The status of the message.
       type: string
@@ -311,7 +297,7 @@ components:
             text:
               $ref: '#/components/schemas/Text'
             photoUrl:
-              $ref: '#/components/schemas/MessagePhotoUrl'
+              $ref: '#/components/schemas/PhotoUrl'
           additionalProperties: false
           minProperties: 1
           maxProperties: 2
@@ -321,6 +307,7 @@ components:
 
         replyTo:
           $ref: '#/components/schemas/MessageId'
+          nullable: true
 
       additionalProperties: false
 
@@ -338,19 +325,10 @@ components:
     Emoji:
       type: string
       description: The emoji used for the reaction. Representation can be a short name, codepoint or emoji glyph.
-      pattern: "^.*{1,4}$"
+      pattern: "^.*$"
       minLength: 1
       maxLength: 5
       example: "1F44D"
-
-    ReactionId:
-      description: The unique identifier of a reaction.
-      type: string
-      format: uuid
-      pattern: "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$"
-      minLength: 36
-      maxLength: 36
-      example: "423e4567-e89b-12d3-a456-426614174003"
     
     Reaction:
       description: A reaction to a message.
@@ -385,6 +363,7 @@ components:
 
 
   responses:
+   
     Unauthorized:
       description: Unauthorized - missing or invalid user identifier in Authorization header.
       headers:
@@ -629,7 +608,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UserPhotoUrl'
+              $ref: '#/components/schemas/PhotoUrl'
       responses:
         '200':
           description: Profile photo URL set successfully.
@@ -681,6 +660,10 @@ paths:
           $ref: '#/components/responses/InternalError'
 
 
+  #TODO fare un endpoint che restituisce tutti gli utenti
+
+
+
   # UPLOAD PHOTO
   /me/media/photos:
     post:
@@ -688,7 +671,7 @@ paths:
       summary: Upload a photo file.
       description: Uploads a single photo using multipart/form-data and returns its accessible URL.
 
-      operationId: uploadPhoto
+      operationId: uploadMyPhoto
 
       requestBody:
         description: The photo file that will be uploaded to the server. Only one file is allowed.
@@ -776,11 +759,12 @@ paths:
                       $ref: '#/components/schemas/Text'
                     photoUrl:
                       description: URL referencing a previously uploaded photo to attach to the message.
-                      $ref: '#/components/schemas/MessagePhotoUrl'
+                      $ref: '#/components/schemas/PhotoUrl'
                   additionalProperties: false
                 replyTo:
                   description: Optional messageId of the message being replied to.
                   $ref: '#/components/schemas/MessageId'
+                  nullable: true
               required:
                 - conversationId
                 - content
@@ -914,19 +898,14 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              description: Targets for the forward operation.
-              properties:
+              properties: 
                 targetConversationIds:
-                  description: Array of conversation IDs where the message will be forwarded.
                   type: array
-                  minItems: 1
-                  maxItems: 100
                   items:
                     $ref: '#/components/schemas/ConversationId'
-              additionalProperties: false
-              required:
-                - targetConversationIds
+                  minItems: 1
+                  maxItems: 100
+              required: [targetConversationIds]
             examples:
               forward_to_two_conversations:
                 summary: Forward to two conversations
@@ -1003,7 +982,7 @@ paths:
   # MANAGE REACTIONS
   /reactions:
     post:
-      tags: ["messages"]
+      tags: ["reactions"]
       summary: Add (comment) a reaction to a message
       description: |
         Adds a reaction (emoji) to the specified message. The authenticated user (Authorization: Bearer <userId>)
@@ -1072,7 +1051,7 @@ paths:
 
   /reactions/{reactionId}:
     delete:
-      tags: ["messages"]
+      tags: ["reactions"]
       summary: Remove (uncomment) a reaction
       description: |
         Removes an existing reaction identified by {reactionId}. Only the user who created the reaction
@@ -1220,7 +1199,7 @@ paths:
                 description: Response containing the URL of the uploaded photo.
                 properties:
                   photoUrl:
-                    $ref: '#/components/schemas/GroupPhotoUrl'
+                    $ref: '#/components/schemas/PhotoUrl'
                 additionalProperties: false
                 required:
                   - photoUrl
@@ -1271,7 +1250,7 @@ paths:
               description: Payload to set the group's photo using an existing URL.
               properties:
                 photoUrl:
-                  $ref: '#/components/schemas/GroupPhotoUrl'
+                  $ref: '#/components/schemas/PhotoUrl'
               additionalProperties: false 
               required:
                 - photoUrl
@@ -1526,21 +1505,15 @@ paths:
             default: 30
           example: 30
 
-        - name: before
+        - name: offset
+          description: "The number of items to skip before starting to collect the result set (used for pagination)."
           in: query
           required: false
-          description: Return messages created strictly before this RFC3339 timestamp. Use for paginating older messages.
           schema:
-            $ref: '#/components/schemas/Timestamp'
-          example: "2024-01-02T15:00:00Z"
-
-        - name: after
-          in: query
-          required: false
-          description: Return messages created strictly after this RFC3339 timestamp. Use for fetching newer messages.
-          schema:
-            $ref: '#/components/schemas/Timestamp'
-          example: "2024-01-01T12:00:00Z"
+            description: "The number of items to skip before starting to collect the result set (used for pagination)."
+            type: integer
+            minimum: 0
+            default: 0
 
       responses:
         '200':
